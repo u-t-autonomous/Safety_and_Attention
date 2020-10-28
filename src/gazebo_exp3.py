@@ -510,15 +510,24 @@ if __name__ == '__main__':
     # make_user_wait('Press enter to start')
 
     # Create velocity controller and converter objects
-    vel_controller = VelocityController('/odom', '/cmd_vel')
+    vel_controller_0 = VelocityController('/tb3_0/odom', '/tb3_0/cmd_vel')
+    vel_controller_1 = VelocityController('/tb3_1/odom', '/tb3_1/cmd_vel')
+    vel_controller_2 = VelocityController('/tb3_2/odom', 'tb3_2/cmd_vel')
     rospy.sleep(1.0)
 
     # Set the initial point of the robotic agent in the Gazebo world (make sure this
     # is the same as the initial position in the Safety and Attention environment
-    init_point = Point(0, 0, None)
-    vel_controller.go_to_point(init_point)
+    init_point_0 = Point(-8, -8, None)
+    init_point_1 = Point(-7.65, -5.2, None)
+    init_point_2 = Point(3.4,2.8, None)
+    vel_controller_0.go_to_point(init_point_0)
+    vel_controller_1.go_to_point(init_point_1)
+    vel_controller_2.go_to_point(init_point_2)
+
+    # make_user_wait()
 
     # Set up the safety and attention environment to perform the planning in
+    print('here')
 
     # Robotic agent follows linear dynamics x_k+1 = A*x_k + B*u_k
     rob_A_mat = np.eye(2)
@@ -526,23 +535,23 @@ if __name__ == '__main__':
 
     # Define the state that the robotic agent must travel to and the L2-norm
     # tolerance for which we can say that the agent "reached" that state
-    target_state = np.array([-1.5,-1.5])
-    target_tolerance = 5e-2
+    goal_state = np.array([6,6])
+    goal_tolerance = 5e-2
 
     # Parameter for constructing Gaussian level sets of obstacle positions
     # A lower beta means that the "keep-out region" is larger
     beta = 0.01
 
     # Number of time steps into the future that the robotic agent must plan
-    planning_horizon = 5
+    planning_horizon = 10
 
     # Initial position of the robotic agent in the environment
-    rob_init_pos = np.array([0, 0])
+    rob_init_pos = np.array([-8, -8])
 
     # The size of the circle (assumed to be in meters?) for which the robotic
     # agent can make an observation about an obstacle if the obstacle is within
     # that position.
-    obs_field_of_view_rad = 3
+    obs_field_of_view_rad = 100
 
     # The number of time steps between subsequent opportunities for the robotic
     # agent to make an observation
@@ -562,17 +571,17 @@ if __name__ == '__main__':
 
     # Now that we have all of the ingredients, create the robot safety and
     # attention environment
-    robotic_agent_environ = RobotSaAEnvironment(target_state, target_tolerance, beta,
+    robotic_agent_environ = RobotSaAEnvironment(goal_state, goal_tolerance, beta,
                 planning_horizon, rob_init_pos, rob_A_mat, rob_B_mat, obs_field_of_view_rad,
                 obs_interval, rob_state_max, rob_input_max, sampling_time)
 
     # Add the first obstacle
-    obs_1_init = np.array([-0.75,-0.75])
+    obs_1_init = np.array([-7.65,-5.2])
     obs_1_A_matrix = np.eye(2)
     obs_1_F_matrix = np.eye(2)
-    obs_1_mean_vec = np.array([0,0])
-    obs_1_cov_mat = np.eye(2)
-    obs_1_radius = 0.5
+    obs_1_mean_vec = np.array([7.5,7.4])
+    obs_1_cov_mat = np.array([[2,0.25],[0.25,2]])
+    obs_1_radius = 1.2
     robotic_agent_environ.add_linear_obstacle(obs_1_init,obs_1_A_matrix,
         obs_1_F_matrix,obs_1_mean_vec,obs_1_cov_mat,obs_1_radius)
 
@@ -588,7 +597,3 @@ if __name__ == '__main__':
 
         # Update the robotic agent's position
         robotic_agent_environ.rob_pos = np.array([vel_controller.x, vel_controller.y])
-
-    # Ask the user for a cardinal direction to move the robot, and then move it
-    move_TB_keyboard(vel_controller)
-    make_user_wait()
