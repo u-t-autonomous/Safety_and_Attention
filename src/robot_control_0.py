@@ -527,6 +527,12 @@ if __name__ == '__main__':
     # # is the same as the initial position in the Safety and Attention environment
     # init_point = Point(0, 0, None)
     # vel_controller.go_to_point(init_point)
+    
+    # Make a ReadyTool to wait for the ready start signal
+    rdy = ReadyTool()
+    rdy.wait_for_ready()
+    print("Robot 0 made it past Ready Check *")
+    sys.exit()
 
     # # Set up the safety and attention environment to perform the planning in
 
@@ -586,11 +592,6 @@ if __name__ == '__main__':
     # robotic_agent_environ.add_linear_obstacle(obs_1_init,obs_1_A_matrix,
     #     obs_1_F_matrix,obs_1_mean_vec,obs_1_cov_mat,obs_1_radius)
 
-    # Make a ReadyTool to wait for the ready start signal
-    rdy = ReadyTool()
-    rdy.wait_for_ready()
-    print("Robot 0 made it past Ready Check *")
-    sys.exit()
 
     # # Now, while we have not reached the target point, continue executing the controller
     # while robotic_agent_environ.continue_condition:

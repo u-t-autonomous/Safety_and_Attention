@@ -25,17 +25,17 @@ from std_msgs.msg import ColorRGBA, Bool
 from geometry_msgs.msg import Quaternion, Vector3
 
 
-# # To import for running safety and attention simulations
-# from linear_dynamics_auxilliary_functions import (ellipsoid_level_function,
-#     check_collisions,continue_condition,get_mu_sig_over_time_hor,
-#     get_mu_sig_theta_over_time_hor,get_Q_mats_over_time_hor,
-#     get_Qplus_mats_over_time_hor,propagate_linear_obstacles,
-#     propagate_nonlinear_obstacles)
-# from dc_based_motion_planner import (create_dc_motion_planner,
-#     solve_dc_motion_planning,create_cvxpy_motion_planner_obstacle_free)
-# from dc_motion_planning_ecos import (dc_motion_planning_call_ecos,
-#     stack_params_for_ecos,set_up_independent_ecos_params)
-# from Robot_SaA_Environment import LinearObstacle, NonlinearObstacle, RobotSaAEnvironment
+# To import for running safety and attention simulations
+from linear_dynamics_auxilliary_functions import (ellipsoid_level_function,
+    check_collisions,continue_condition,get_mu_sig_over_time_hor,
+    get_mu_sig_theta_over_time_hor,get_Q_mats_over_time_hor,
+    get_Qplus_mats_over_time_hor,propagate_linear_obstacles,
+    propagate_nonlinear_obstacles)
+from dc_based_motion_planner import (create_dc_motion_planner,
+    solve_dc_motion_planning,create_cvxpy_motion_planner_obstacle_free)
+from dc_motion_planning_ecos import (dc_motion_planning_call_ecos,
+    stack_params_for_ecos,set_up_independent_ecos_params)
+from Robot_SaA_Environment import LinearObstacle, NonlinearObstacle, RobotSaAEnvironment
 
 # ------------------ Start Class Definitions ------------------
 
@@ -527,80 +527,81 @@ if __name__ == '__main__':
     # # is the same as the initial position in the Safety and Attention environment
     # init_point = Point(0, 0, None)
     # vel_controller.go_to_point(init_point)
-
-    # # Set up the safety and attention environment to perform the planning in
-
-    # # Robotic agent follows linear dynamics x_k+1 = A*x_k + B*u_k
-    # rob_A_mat = np.eye(2)
-    # rob_B_mat = np.eye(2)
-
-    # # Define the state that the robotic agent must travel to and the L2-norm
-    # # tolerance for which we can say that the agent "reached" that state
-    # target_state = np.array([-1.5,-1.5])
-    # target_tolerance = 5e-2
-
-    # # Parameter for constructing Gaussian level sets of obstacle positions
-    # # A lower beta means that the "keep-out region" is larger
-    # beta = 0.01
-
-    # # Number of time steps into the future that the robotic agent must plan
-    # planning_horizon = 5
-
-    # # Initial position of the robotic agent in the environment
-    # rob_init_pos = np.array([0, 0])
-
-    # # The size of the circle (assumed to be in meters?) for which the robotic
-    # # agent can make an observation about an obstacle if the obstacle is within
-    # # that position.
-    # obs_field_of_view_rad = 3
-
-    # # The number of time steps between subsequent opportunities for the robotic
-    # # agent to make an observation
-    # obs_interval = 1
-
-    # # Assuming a square, the absolute value in the L1 sense that the position of
-    # # the robotic agent can be in any of the cardinal directions
-    # rob_state_max = 10
-
-    # # This parameter is for how large of "steps" the difference in waypoints can be,
-    # # not really a physical parameter and we will likely need to adjust this
-    # rob_input_max = 10
-
-    # # Time between subsequent time steps "k" and "k+1" (again, not really a physical
-    # # parameter, will probably need to play around with this value)
-    # sampling_time = 0.01
-
-    # # Now that we have all of the ingredients, create the robot safety and
-    # # attention environment
-    # robotic_agent_environ = RobotSaAEnvironment(target_state, target_tolerance, beta,
-    #             planning_horizon, rob_init_pos, rob_A_mat, rob_B_mat, obs_field_of_view_rad,
-    #             obs_interval, rob_state_max, rob_input_max, sampling_time)
-
-    # # Add the first obstacle
-    # obs_1_init = np.array([-0.75,-0.75])
-    # obs_1_A_matrix = np.eye(2)
-    # obs_1_F_matrix = np.eye(2)
-    # obs_1_mean_vec = np.array([0,0])
-    # obs_1_cov_mat = np.eye(2)
-    # obs_1_radius = 0.5
-    # robotic_agent_environ.add_linear_obstacle(obs_1_init,obs_1_A_matrix,
-    #     obs_1_F_matrix,obs_1_mean_vec,obs_1_cov_mat,obs_1_radius)
-
+    
     # Make a ReadyTool to wait for the ready start signal
     rdy = ReadyTool()
     rdy.wait_for_ready()
     print("Robot 2 made it past Ready Check *")
     sys.exit()
 
-    # # Now, while we have not reached the target point, continue executing the controller
-    # while robotic_agent_environ.continue_condition:
+    # Set up the safety and attention environment to perform the planning in
 
-    #     # Resolve the problem
-    #     robotic_agent_environ.solve_optim_prob_and_update()
+    # Robotic agent follows linear dynamics x_k+1 = A*x_k + B*u_k
+    rob_A_mat = np.eye(2)
+    rob_B_mat = np.eye(2)
 
-    #     next_p = robotic_agent_environ.nominal_trajectory[:,0]
-    #     next_point = Point(float(next_p[0]),float(next_p[1]),None)
-    #     vel_controller.go_to_point(next_point)
+    # Define the state that the robotic agent must travel to and the L2-norm
+    # tolerance for which we can say that the agent "reached" that state
+    target_state = np.array([-1.5,-1.5])
+    target_tolerance = 5e-2
 
-    #     # Update the robotic agent's position
-    #     robotic_agent_environ.rob_pos = np.array([vel_controller.x, vel_controller.y])
+    # Parameter for constructing Gaussian level sets of obstacle positions
+    # A lower beta means that the "keep-out region" is larger
+    beta = 0.01
+
+    # Number of time steps into the future that the robotic agent must plan
+    planning_horizon = 5
+
+    # Initial position of the robotic agent in the environment
+    rob_init_pos = np.array([0, 0])
+
+    # The size of the circle (assumed to be in meters?) for which the robotic
+    # agent can make an observation about an obstacle if the obstacle is within
+    # that position.
+    obs_field_of_view_rad = 3
+
+    # The number of time steps between subsequent opportunities for the robotic
+    # agent to make an observation
+    obs_interval = 1
+
+    # Assuming a square, the absolute value in the L1 sense that the position of
+    # the robotic agent can be in any of the cardinal directions
+    rob_state_max = 10
+
+    # This parameter is for how large of "steps" the difference in waypoints can be,
+    # not really a physical parameter and we will likely need to adjust this
+    rob_input_max = 10
+
+    # Time between subsequent time steps "k" and "k+1" (again, not really a physical
+    # parameter, will probably need to play around with this value)
+    sampling_time = 0.01
+
+    # Now that we have all of the ingredients, create the robot safety and
+    # attention environment
+    robotic_agent_environ = RobotSaAEnvironment(target_state, target_tolerance, beta,
+                planning_horizon, rob_init_pos, rob_A_mat, rob_B_mat, obs_field_of_view_rad,
+                obs_interval, rob_state_max, rob_input_max, sampling_time)
+
+    # Add the first obstacle
+    obs_1_init = np.array([-0.75,-0.75])
+    obs_1_A_matrix = np.eye(2)
+    obs_1_F_matrix = np.eye(2)
+    obs_1_mean_vec = np.array([0,0])
+    obs_1_cov_mat = np.eye(2)
+    obs_1_radius = 0.5
+    robotic_agent_environ.add_linear_obstacle(obs_1_init,obs_1_A_matrix,
+        obs_1_F_matrix,obs_1_mean_vec,obs_1_cov_mat,obs_1_radius)
+
+
+    # Now, while we have not reached the target point, continue executing the controller
+    while robotic_agent_environ.continue_condition:
+
+        # Resolve the problem
+        robotic_agent_environ.solve_optim_prob_and_update()
+
+        next_p = robotic_agent_environ.nominal_trajectory[:,0]
+        next_point = Point(float(next_p[0]),float(next_p[1]),None)
+        vel_controller.go_to_point(next_point)
+
+        # Update the robotic agent's position
+        robotic_agent_environ.rob_pos = np.array([vel_controller.x, vel_controller.y])
