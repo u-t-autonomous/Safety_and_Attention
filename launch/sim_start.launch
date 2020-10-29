@@ -1,0 +1,23 @@
+<launch>
+  <arg name="a" default="0.0"/>
+
+  <node pkg="Safety_and_Attention" name="robot_control_0" type="robot_control_0.py" output="log">
+    <param name ="a" value= "$(arg a)" />
+    <param name ="b" value= "0.0" />
+  </node>
+
+  <node pkg="Safety_and_Attention" name="robot_control_0" type="robot_control_0.py" output="log">
+    <param name ="a" value= "$(arg a)" />
+    <param name ="b" value= "0.0" />
+  </node>
+
+  <node pkg="Safety_and_Attention" name="robot_control_0" type="robot_control_0.py" output="log">
+    <param name ="a" value= "$(arg a)" />
+    <param name ="b" value= "0.0" />
+  </node>
+
+  <node pkg="Safety_and_Attention" name="commander" type="commander.py" output="screen">
+    <param name ="c" value= "0.0" />
+  </node>
+
+</launch>
