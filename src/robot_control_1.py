@@ -516,11 +516,11 @@ def wait_for_time():
 
 if __name__ == '__main__':
 
-    rospy.init_node("robot_control_0_node", anonymous=True)
+    rospy.init_node("robot_control_1_node", anonymous=True)
     wait_for_time()
 
     # Create velocity controller and converter objects
-    vel_controller = VelocityController('/tb3_0/odom', '/tb3_0/cmd_vel')
+    vel_controller = VelocityController('/tb3_1/odom', '/tb3_1/cmd_vel')
     rospy.sleep(1.0)
 
     # # Set the initial point of the robotic agent in the Gazebo world (make sure this
@@ -589,7 +589,7 @@ if __name__ == '__main__':
     # Make a ReadyTool to wait for the ready start signal
     rdy = ReadyTool()
     rdy.wait_for_ready()
-    print("Robot 0 made it past Ready Check *")
+    print("Robot 1 made it past Ready Check *")
     sys.exit()
 
     # # Now, while we have not reached the target point, continue executing the controller
