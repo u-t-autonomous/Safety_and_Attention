@@ -17,7 +17,7 @@ def ellipsoid_level_function(obs_center, obs_matrix, query_state):
     :param query_state_vector:
     :return: Evaluation of h
     """
-    return 1 - np.matmul((query_state - obs_center),obs_matrix,(query_state - obs_center))
+    return 1 - np.matmul((query_state-obs_center), np.matmul(obs_matrix, (query_state - obs_center)))
 
 
 def check_collisions(future_trajectory, obs_mu_bars_time_hor, obs_Qplus_mat_time_hor,
@@ -48,9 +48,6 @@ def check_collisions(future_trajectory, obs_mu_bars_time_hor, obs_Qplus_mat_time
         for obs_index in range(n_obstacles):
             obs_matrix_inv = LA.inv(obs_Qplus_mat_time_hor[obs_index][time_index])
             obs_center = obs_mu_bars_time_hor[obs_index][time_index]
-            print(obs_center)
-            print(obs_matrix_inv)
-            print(future_trajectory_state)
             ellipse_equation_vals[obs_index] = ellipsoid_level_function(
                 obs_center, obs_matrix_inv, future_trajectory_state)
         # We collide if the evaluation is positive (permit some incursion by
@@ -58,7 +55,6 @@ def check_collisions(future_trajectory, obs_mu_bars_time_hor, obs_Qplus_mat_time
         collision_flag_list[time_index] = \
             np.any(ellipse_equation_vals >= relaxation)
     return collision_flag_list
-
 
 def continue_condition(current_state, target_state, target_tolerance):
     """
@@ -106,8 +102,8 @@ def get_mu_sig_over_time_hor(planning_horizon, num_lin_obs, obs_mu_bars_t,
             cur_mu = obs_mu_bars_plan_hor[j][t - 1]
             cur_sig = obs_sig_bars_plan_hor[j][t - 1]
             obs_mu_bars_plan_hor[j][t] = np.matmul(cur_obs.A_matrix,cur_mu) + np.matmul(cur_obs.F_matrix,cur_obs.w_mean_vec)
-            obs_sig_bars_plan_hor[j][t] = np.matmul(cur_obs.A_matrix,cur_sig,np.transpose(cur_obs.A_matrix))\
-                                          + np.matmul(cur_obs.F_matrix,cur_obs.w_cov_mat,np.transpose(cur_obs.F_matrix))
+            obs_sig_bars_plan_hor[j][t] = np.matmul(cur_obs.A_matrix,np.matmul(cur_sig,np.transpose(cur_obs.A_matrix)))\
+                                          + np.matmul(cur_obs.F_matrix,np.matmul(cur_obs.w_cov_mat,np.transpose(cur_obs.F_matrix)))
 
     return obs_mu_bars_plan_hor, obs_sig_bars_plan_hor
 
@@ -155,8 +151,8 @@ def get_mu_sig_theta_over_time_hor(planning_horizon, num_nonlin_obs, obs_mu_bars
             cur_mu = obs_mu_bars_plan_hor[j][t - 1]
             cur_sig = obs_sig_bars_plan_hor[j][t - 1]
             obs_mu_bars_plan_hor[j][t] = np.matmul(cur_obs.A_matrix,cur_mu) + np.matmul(B_0,cur_obs.w_mean_vec)
-            obs_sig_bars_plan_hor[j][t] = np.matmul(cur_obs.A_matrix,cur_sig,np.transpose(cur_obs.A_matrix))\
-                                          + np.matmul(B_0,cur_obs.w_cov_mat,np.transpose(B_0))
+            obs_sig_bars_plan_hor[j][t] = np.matmul(cur_obs.A_matrix,np.matmul(cur_sig,np.transpose(cur_obs.A_matrix)))\
+                                          + np.matmul(B_0,np.matmul(cur_obs.w_cov_mat,np.transpose(B_0)))
             obs_theta_plan_hor[j][t] = obs_theta_plan_hor[j][t - 1] + sampling_time*cur_obs.gamma
 
     return obs_mu_bars_plan_hor, obs_sig_bars_plan_hor, obs_theta_plan_hor
@@ -189,7 +185,7 @@ def get_Q_mats_over_time_hor(planning_horizon, num_obs, beta, obs_list, obs_sig_
             # TODO: See if this sqrt_term is still necessary after changing code
             sqrt_term = max(1e-12, LA.det(2 * np.pi * sig_cur))  # If current Sig is zero, may have numerical errors
             obs_Q_mat_plan_hor[j][t] = -2 * np.log((beta * np.sqrt(sqrt_term)) /
-                                                   (2 * np.pi * cur_obs.radius ** 2)) * sig_cur
+                (num_obs * planning_horizon * np.pi * cur_obs.radius ** 2)) * sig_cur
 
     return obs_Q_mat_plan_hor
 
@@ -251,8 +247,8 @@ def propagate_linear_obstacles(num_lin_obs, lin_obs_list):
         cur_obs = lin_obs_list[j]
         linear_obs_mu_bars_t_new[j] = np.matmul(cur_obs.A_matrix,cur_obs.sim_position)\
                                     + np.matmul(cur_obs.F_matrix,cur_obs.w_mean_vec)
-        linear_obs_sig_bars_t_new[j] = np.matmul(cur_obs.A_matrix,cur_obs.sig_mat,np.transpose(cur_obs.A_matrix))\
-                                    + np.matmul(cur_obs.F_matrix,cur_obs.w_cov_mat,np.transpose(cur_obs.F_matrix))
+        linear_obs_sig_bars_t_new[j] = np.matmul(cur_obs.A_matrix,np.matmul(cur_obs.sig_mat,np.transpose(cur_obs.A_matrix)))\
+                                    + np.matmul(cur_obs.F_matrix,np.matmul(cur_obs.w_cov_mat,np.transpose(cur_obs.F_matrix)))
     linear_obs_mu_bars_t_new = linear_obs_mu_bars_t_new[:]
     linear_obs_sig_bars_t_new = linear_obs_sig_bars_t_new[:]
 
@@ -283,8 +279,8 @@ def propagate_nonlinear_obstacles(num_nonlin_obs, sampling_time, nonlin_obs_list
         cur_obs = nonlin_obs_list[j]
         B_0 = sampling_time * np.array([np.cos(cur_obs.theta), np.sin(cur_obs.theta)])
         nonlinear_obs_mu_bars_t_new[j] = np.matmul(cur_obs.A_matrix,cur_obs.sim_position) + np.matmul(B_0,cur_obs.w_mean_vec)
-        nonlinear_obs_sig_bars_t_new[j] = np.matmul(cur_obs.A_matrix,cur_obs.sig_mat,np.transpose(
-            cur_obs.A_matrix)) + np.matmul(B_0,cur_obs.w_cov_mat,np.transpose(B_0))
+        nonlinear_obs_sig_bars_t_new[j] = np.matmul(cur_obs.A_matrix,np.matmul(cur_obs.sig_mat,np.transpose(
+            cur_obs.A_matrix))) + np.matmul(B_0,np.matmul(cur_obs.w_cov_mat,np.transpose(B_0)))
         nonlinear_obs_theta_t_new[j] = cur_obs.theta + sampling_time * cur_obs.gamma
     nonlinear_obs_mu_bars_t = nonlinear_obs_mu_bars_t_new[:]
     nonlinear_obs_sig_bars_t = nonlinear_obs_sig_bars_t_new[:]

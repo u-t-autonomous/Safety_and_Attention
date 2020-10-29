@@ -5,7 +5,11 @@
 """
 import numpy as np
 from scipy.linalg import block_diag
+import matplotlib.pyplot as plt
+from matplotlib.patches import Polygon, Circle, Ellipse
+from matplotlib.collections import PatchCollection
 from numpy import linalg as LA
+import math
 
 # Additional scripts to import
 from linear_dynamics_auxilliary_functions import \
@@ -18,14 +22,14 @@ from dc_based_motion_planner import \
     solve_dc_motion_planning)
 from dc_motion_planning_ecos import \
     (dc_motion_planning_call_ecos, stack_params_for_ecos,
-    set_up_independent_ecos_params)
+    set_up_independent_ecos_params, solve_obs_free_ecos)
 
 
 class RobotSaAEnvironment:
 
     def __init__(self, target_state, target_tolerance, gauss_lev_param, planning_horizon,
                  rob_init_pos, rob_A_mat, rob_B_mat, obs_field_of_view_rad, obs_interval,
-                 rob_state_max, rob_input_max, sampling_time):
+                 rob_state_max, rob_input_max, sampling_time, observation_strategy):
         """
         input: target_state: the state that the robot seeks to reach
         input: target_tolerance: the tolerance for which we say the robot has "reached"
@@ -58,6 +62,15 @@ class RobotSaAEnvironment:
         self.obs_interval = obs_interval
         self.rob_state_max = rob_state_max
         self.rob_input_max = rob_input_max
+        self.obs_strat = observation_strategy
+
+        # Plot the initial map
+        safe_set_polygon = Polygon(np.array([[-self.rob_state_max, -self.rob_state_max],
+            [self.rob_state_max, -self.rob_state_max],[self.rob_state_max, self.rob_state_max],
+            [-self.rob_state_max, self.rob_state_max]]), alpha=1, edgecolor='k', fill=False, zorder=0)
+        self.fig, self.ax = self.plot_initial_map(safe_set_polygon)
+        plt.draw()
+        plt.pause(0.001)
 
         # Sets to false once we have reached the target state
         self.continue_condition = True
@@ -78,7 +91,7 @@ class RobotSaAEnvironment:
 
         # Encode information about the trajectory, control, active dual
         # variables, etc (essentially, outputs of the optimization problem
-        self.num_active_dual_vars = []
+        self.dual_var_metric = []
         self.nominal_trajectory = np.zeros(
             (self.rob_state_dim, self.planning_horizon))
 
@@ -92,6 +105,30 @@ class RobotSaAEnvironment:
         # define the matrices to obtain X over the planning horizon. Call
         # this X = Z x_0 + H u
         self.Z, self.H = self.get_concatenated_matrices()
+
+    def plot_initial_map(self,safe_set_polygon):
+
+        # Plotting the map
+        fig = plt.figure()
+        ax = fig.gca()
+        # Plot the safe set
+        ax.add_patch(safe_set_polygon)
+        # Plot the initial and target states
+        ax.scatter(self.rob_pos[0], self.rob_pos[1], 100, color='b',
+                   label='Initial state')
+        ax.scatter(self.target_state[0], self.target_state[1], 100, color='g',
+                   label='Target state')
+
+        sta_lim_tup = [-self.rob_state_max,self.rob_state_max]
+        ax.set_xlim(sta_lim_tup)
+        ax.set_ylim(sta_lim_tup)
+        ax.set_aspect('equal')
+        ax.set_xlabel('x')
+        ax.set_ylabel('y')
+        leg = plt.legend(bbox_to_anchor=(1.01, 0.5))
+        plt.tight_layout()
+
+        return fig, ax
 
     def add_linear_obstacle(self, init_position, A_matrix, F_matrix,
                  w_mean_vec, w_cov_mat, radius):
@@ -109,7 +146,7 @@ class RobotSaAEnvironment:
                  w_mean_vec, w_cov_mat, radius, self.rob_state_dim, self.sampling_time))
         self.num_lin_obs += 1
         self.num_obs += 1
-        self.num_active_dual_vars.append(0)
+        self.dual_var_metric.append(0)
 
     def add_nonlinear_obstacle(self, init_position, A_matrix, gamma,
                  w_mean_vec, w_cov_mat, radius):
@@ -127,7 +164,7 @@ class RobotSaAEnvironment:
                  w_mean_vec, w_cov_mat, radius, self.rob_state_dim, self.sampling_time))
         self.num_nonlin_obs += 1
         self.num_obs += 1
-        self.num_active_dual_vars.append(0)
+        self.dual_var_metric.append(0)
 
     def get_concatenated_matrices(self):
         """
@@ -199,7 +236,7 @@ class RobotSaAEnvironment:
                 cur_obs = self.lin_obs_list[j]
                 # If this obstacle was deemed to be the most relevant, attempt to make
                 # an observation about it
-                if obs_index == np.argmax(self.num_active_dual_vars):
+                if obs_index == np.argmax(self.dual_var_metric):
                     cur_obs.update_obstacle_position(1,self.rob_pos,self.obs_field_of_view_rad)
                     obs_index += 1
                 else:
@@ -208,7 +245,7 @@ class RobotSaAEnvironment:
             # Repeat the process for the nonlinear obstacles
             for j in range(self.num_nonlin_obs):
                 cur_obs = self.nonlin_obs_list[j]
-                if obs_index == np.argmax(self.num_active_dual_vars):
+                if obs_index == np.argmax(self.dual_var_metric):
                     cur_obs.update_obstacle_position(1,self.rob_pos,self.obs_field_of_view_rad)
                     obs_index += 1
                 else:
@@ -226,6 +263,17 @@ class RobotSaAEnvironment:
         if np.linalg.norm(self.rob_pos-self.target_state) <= self.target_tolerance:
             self.continue_condition = False
 
+        print('----------')
+        print(self.dual_var_metric)
+        for obs in range(2):
+            print(self.lin_obs_list[obs].sig_mat)
+
+        # Reset the dual variable metric counter to all zeros
+        self.dual_var_metric = [0 for i in range(len(self.dual_var_metric))]
+
+        print(self.dual_var_metric)
+        print('----------')
+
         return self.nominal_trajectory
 
     def linear_dynamics_planning(self):
@@ -233,22 +281,6 @@ class RobotSaAEnvironment:
         Given state of robotic agent's environment, construct a new trajectory
         to follow (i.e. generate a set of waypoints to send to the agent)
         """
-
-        # Setup the CVXPY problem as well as the relevant parameters, variables
-        # cvxpy_motion_planner - CVXPY optimization problem with
-        #     cvxpy_robot_current_state: CVXPY parameter that can be updated by the
-        #       receeding horizon control framework
-        #     cvxpy_obstacle_free_polytope_A, cvxpy_obstacle_free_polytope_b:
-        #       CVXPY parameter that indicates a subset of the
-        #       free space that the robot can move without
-        #       colliding into obstacles
-        #     cvxpy_robot_trajectory, cvxpy_robot_input_sequence:
-        #       CVXPY variable that will be updated by the solver
-        cvxpy_motion_planner, cvxpy_robot_current_state, \
-        cvxpy_robot_trajectory, cvxpy_robot_input_sequence = \
-            create_cvxpy_motion_planner_obstacle_free(self.Z, self.H,
-                                    self.planning_horizon, self.target_state,
-                                    self.rob_state_max, self.rob_input_max)
 
         # Set up optimization problem to run in ECOS...
 
@@ -328,12 +360,9 @@ class RobotSaAEnvironment:
 
         # Solve the obstacle-free optimal control problem to determine a nominal
         # path for the robot to follow.
-        cvxpy_robot_current_state.value = self.rob_pos
-        cvxpy_motion_planner.solve(solver='ECOS')
-        # print('CVX status: {:s} | Solution time: {:1.4f} seconds'.format(
-        #     cvxpy_motion_planner.status,
-        #     cvxpy_motion_planner.solver_stats.solve_time))
-        robot_RHC_trajectory_initial_solution = cvxpy_robot_trajectory.value
+        robot_RHC_trajectory_initial_solution, robot_input_initial_solution = \
+            solve_obs_free_ecos(self.Z, self.H, self.rob_pos, self.rob_state_dim, self.rob_input_dim,
+                                target_tile_ecos, self.planning_horizon, self.rob_state_max, self.rob_input_max)
         robot_initial_trajectory_state_x_time = np.reshape(
             robot_RHC_trajectory_initial_solution, (self.planning_horizon, self.rob_state_dim)).T
 
@@ -369,8 +398,9 @@ class RobotSaAEnvironment:
                     self.Z, self.rob_pos, robot_RHC_trajectory_initial_solution,
                     obs_mu_bar_stack_all, obs_Qplus_stack_all, mult_matrix_stack, A_ecos,
                     G_linear_partial_stack_ecos, G_quadratic_ecos, h_linear_partial_stack_ecos,
-                    h_quadratic_ecos, target_tile_ecos, tau_max=np.array([10000]),
-                    mu=10, delta=1e-3, tau=1)
+                    h_quadratic_ecos, target_tile_ecos, obs_mu_bars_time_hor, obs_Qplus_mat_time_hor,
+                    self.rob_state_max, self.rob_input_max, self.H, tau_max=np.array([10000]),
+                    mu=20, delta=1e-3, tau=1)
 
             # Check to see if the updated trajectory found through DC program
             # successfully removed collisions from the trajectory
@@ -389,20 +419,103 @@ class RobotSaAEnvironment:
             # Store information about dual variables at current time step
             obs_cons_dual_variables = np.asarray(obs_cons_dual_variables)
 
-            # Set the dual variables to be 1 if they are nonzero
-            # (above tolerance) and zero otherwise
-            obs_cons_dual_variables[obs_cons_dual_variables >= 1e-4] = 1
-            obs_cons_dual_variables[obs_cons_dual_variables < 1e-4] = 0
+            # Method 1: Use the total number of active dual variables
+            if self.obs_strat == "bin":
 
-            # Reshape, sum over time horizon, add to the overall counter
-            obs_cons_dual_variables = np.reshape(obs_cons_dual_variables,
-                                                 (self.num_obs, self.planning_horizon))
-            obs_cons_dual_vars_sum = np.sum(obs_cons_dual_variables, 1)
-            self.num_active_dual_vars += obs_cons_dual_vars_sum
+                # Set the dual variables to be 1 if they are nonzero
+                # (above tolerance) and zero otherwise
+                obs_cons_dual_variables[obs_cons_dual_variables >= 1e-4] = 1
+                obs_cons_dual_variables[obs_cons_dual_variables < 1e-4] = 0
+
+                # Reshape, sum over time horizon, add to the overall counter
+                obs_cons_dual_variables = np.reshape(obs_cons_dual_variables,
+                    (self.num_obs, self.planning_horizon))
+                obs_cons_dual_vars_indic_sum = np.sum(obs_cons_dual_variables, 1)
+                self.dual_var_metric += obs_cons_dual_vars_indic_sum
+
+            # Method 2: Add up the sum of the dual variables,
+            elif self.obs_strat == "sum":
+
+                # Get rid of rounding errors due to numerical precision
+                # DO NOT make them binary, though!
+                obs_cons_dual_variables[obs_cons_dual_variables < 1e-4] = 0
+
+                # Reshape, sum over time horizon, add to the overall counter
+                obs_cons_dual_variables = np.reshape(obs_cons_dual_variables,
+                    (self.num_obs, self.planning_horizon))
+                obs_cons_dual_vars_sum = np.sum(obs_cons_dual_variables, 1)
+                self.dual_var_metric += obs_cons_dual_vars_sum
+
+            # Currently, we only have these two methods.
+            else:
+                raise RuntimeError('\n\nWARNING!!! PICK A VALID OBSERVATION STRATEGY!\n\n')
 
         else:
             # If no collisions detected, use nominal trajectory
             robot_RHC_trajectory_state_x_time = robot_initial_trajectory_state_x_time
+
+        # Update the plot ellipsoids
+        obs_ellipse = []
+        for j in range(self.num_obs):
+
+            cur_obs_ell_list = self.lin_obs_list[j].ellipse_list
+            cur_obs_ell_col_list = self.lin_obs_list[j].ellipse_color_list
+
+            obs_center = obs_mu_bars_time_hor[j][0]
+            obs_matrix_inv = LA.inv(obs_Qplus_mat_time_hor[j][0])
+            eigs, eig_vecs = LA.eig(obs_matrix_inv)
+            angle = np.rad2deg(math.atan2(eig_vecs[0, 1], eig_vecs[0, 0]))
+
+            if len(cur_obs_ell_list) < 20:
+                cur_obs_ell_list.insert(0,Ellipse(obs_center, 2 / np.sqrt(eigs[0]),
+                                       2 / np.sqrt(eigs[1]), -angle))
+                if self.lin_obs_list[j].observed_last_step:
+                    cur_obs_ell_col_list.insert(0,'b')
+                else:
+                    cur_obs_ell_col_list.insert(0,'r')
+            else:
+                cur_obs_ell_list.insert(0, Ellipse(obs_center, 2 / np.sqrt(eigs[0]),
+                                                   2 / np.sqrt(eigs[1]), -angle))
+                if self.lin_obs_list[j].observed_last_step:
+                    cur_obs_ell_col_list.insert(0, 'b')
+                else:
+                    cur_obs_ell_col_list.insert(0, 'r')
+                cur_obs_ell_list.pop()
+                cur_obs_ell_col_list.pop()
+
+            cur_obs_ell_collection = PatchCollection(cur_obs_ell_list,
+                facecolors=cur_obs_ell_col_list,alpha=0.40,zorder=0)
+
+            cur_obs_ell_collection.set_alphas([0.4/(t_step+1) for t_step in range(len(cur_obs_ell_list))])
+
+            self.lin_obs_list[j].ell_collection = cur_obs_ell_collection
+
+            self.ax.add_collection(self.lin_obs_list[j].ell_collection)
+
+
+        # Update agent trajectory and nominal future trajectory
+        plt.scatter(np.hstack((self.rob_pos[0],
+                               robot_RHC_trajectory_state_x_time[0, :])),
+                    np.hstack((self.rob_pos[1],
+                               robot_RHC_trajectory_state_x_time[1, :])), 2,
+                    marker='o', color='c')  # 'b:')
+        plt.scatter(self.rob_pos[0],
+                    self.rob_pos[1], 10, marker='x', color='k')
+
+        # Update the obstacle trajectories
+        obs_x = [self.lin_obs_list[i].act_position[0] for i in range(self.num_lin_obs)]
+        obs_y = [self.lin_obs_list[i].act_position[1] for i in range(self.num_lin_obs)]
+        plt.scatter(obs_x, obs_y, 10, marker='x', color='r')
+
+        ellipse_collection = PatchCollection(obs_ellipse,facecolor='r', alpha=0.3, zorder=0)
+        self.ax.add_collection(ellipse_collection)
+
+        plt.draw()
+        plt.pause(0.001)
+
+        # Remove the old ellipse collection
+        for j in range(self.num_lin_obs):
+            self.lin_obs_list[j].ell_collection.remove()
 
         return robot_RHC_trajectory_state_x_time
 
@@ -430,7 +543,6 @@ class LinearObstacle:
         self.w_cov_mat = obs_w_cov_mat
         self.radius = obs_radius
 
-
         # Distinguish between what the actual obstacle position is and
         # what the robot believes it to be when planning its trajectory
         self.sim_position = obs_init_position
@@ -440,6 +552,11 @@ class LinearObstacle:
         # ellipsoid at the current time step (call this the obstacle's
         # q matrix)
         self.sig_mat = np.zeros((rob_state_dim, rob_state_dim))
+
+        # For plotting purposes
+        self.ellipse_list = []
+        self.ellipse_color_list = []
+        self.observed_last_step = False
 
     def update_obstacle_position(self,query_obs_pos,rob_act_pos,
                                  rob_field_of_view_rad):
@@ -454,13 +571,12 @@ class LinearObstacle:
         """
 
         # Sample noise given system parameters
-        noise_cur_t_step = np.random.normal(
-            self.w_mean_vec, self.w_cov_mat, 1)
+        noise_cur_t_step = np.reshape(np.random.multivariate_normal(
+            self.w_mean_vec, self.w_cov_mat, 1),(2,))
 
-        # Push through the linear dynamics to obtain obstacle's
-        # ACTUAL position
-        self.act_position = self.A_matrix*self.act_position \
-            + self.F_matrix*noise_cur_t_step
+        # Push through the linear dynamics to obtain obstacle's ACTUAL position
+        self.act_position = np.matmul(self.A_matrix,self.act_position) \
+            + np.matmul(self.F_matrix,noise_cur_t_step)
 
         # Update the robotic agent's understanding of the
         # obstacle's position (the SIMULATION position, uncertainty ellipsoid)
@@ -473,21 +589,24 @@ class LinearObstacle:
             A_mat = self.A_matrix
             F_mat = self.F_matrix
             self.sim_position = np.matmul(A_mat,self.sim_position) + np.matmul(F_mat,self.w_mean_vec)
-            self.sig_mat = np.matmul(A_mat,self.sig_mat,np.transpose(A_mat)) \
-                           + np.matmul(F_mat,self.w_cov_mat,np.transpose(F_mat))
+            self.sig_mat = np.matmul(A_mat,np.matmul(self.sig_mat,np.transpose(A_mat))) \
+                           + np.matmul(F_mat,np.matmul(self.w_cov_mat,np.transpose(F_mat)))
+            self.observed_last_step = False
         else:
-            if np.norm(rob_act_pos - self.act_position) <= rob_field_of_view_rad:
+            if np.linalg.norm(rob_act_pos - self.act_position) <= rob_field_of_view_rad:
                 # Assume a perfect observation
                 self.sim_position = self.act_position
                 self.sig_mat = np.zeros(np.shape(self.sig_mat))
+                self.observed_last_step = True
             else:
                 # If the observation is unsuccessful, proceed as if we
                 # had not attempted to make an observation of the obstacle
                 A_mat = self.A_matrix
                 F_mat = self.F_matrix
                 self.sim_position = np.matmul(A_mat,self.sim_position) + np.matmul(F_mat,self.w_mean_vec)
-                self.sig_mat = np.matmul(A_mat,self.sig_mat,np.transpose(A_mat)) \
-                               + np.matmul(F_mat,self.w_cov_mat,np.transpose(F_mat))
+                self.sig_mat = np.matmul(A_mat,np.matmul(self.sig_mat,np.transpose(A_mat))) \
+                               + np.matmul(F_mat,np.matmul(self.w_cov_mat,np.transpose(F_mat)))
+                self.observed_last_step = False
 
 
 class NonlinearObstacle:
@@ -535,7 +654,7 @@ class NonlinearObstacle:
         """
 
         # Sample noise for turning rate given system parameters
-        noise_cur_t_step = np.random.normal(
+        noise_cur_t_step = np.random.multivariate_normal(
             self.w_mean_vec, self.w_cov_mat, 1)
 
         # For notational convenience
@@ -544,8 +663,8 @@ class NonlinearObstacle:
 
         # Push through the nonlinear dynamics
         B_0 = self.sampling_time*np.array([sin_theta, cos_theta])
-        self.act_position = self.A_matrix*self.act_position\
-                                + B_0*noise_cur_t_step
+        self.act_position = np.matmul(self.A_matrix,self.act_position)\
+                                + np.matmul(B_0,noise_cur_t_step)
         self.theta = self.theta + self.sampling_time * self.gamma
 
         # Update the robotic agent's understanding of the

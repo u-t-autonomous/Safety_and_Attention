@@ -42,6 +42,9 @@ from dc_based_motion_planner import (create_dc_motion_planner,
 from dc_motion_planning_ecos import (dc_motion_planning_call_ecos,
     stack_params_for_ecos,set_up_independent_ecos_params)
 from Robot_SaA_Environment import LinearObstacle, NonlinearObstacle, RobotSaAEnvironment
+from matplotlib.collections import PatchCollection
+import matplotlib.pyplot as plt
+from matplotlib.patches import Polygon, Circle, Ellipse
 
 # ------------------ Start Class Definitions ------------------
 
@@ -504,6 +507,8 @@ def make_user_wait(msg="Enter exit to exit"):
 
 if __name__ == '__main__':
 
+    np.random.seed(0)
+
     rospy.init_node("velocity_controller")
     wait_for_time()
 
@@ -527,7 +532,9 @@ if __name__ == '__main__':
     # make_user_wait()
 
     # Set up the safety and attention environment to perform the planning in
-    print('here')
+
+    # Observation strategy of the robot. Either "bin" or "sum" (sum is preferred choice)
+    rob_obs_strat = "sum"
 
     # Robotic agent follows linear dynamics x_k+1 = A*x_k + B*u_k
     rob_A_mat = np.eye(2)
@@ -543,7 +550,7 @@ if __name__ == '__main__':
     beta = 0.01
 
     # Number of time steps into the future that the robotic agent must plan
-    planning_horizon = 10
+    planning_horizon = 25
 
     # Initial position of the robotic agent in the environment
     rob_init_pos = np.array([-8, -8])
@@ -567,13 +574,13 @@ if __name__ == '__main__':
 
     # Time between subsequent time steps "k" and "k+1" (again, not really a physical
     # parameter, will probably need to play around with this value)
-    sampling_time = 0.01
+    sampling_time = 0.05
 
     # Now that we have all of the ingredients, create the robot safety and
     # attention environment
     robotic_agent_environ = RobotSaAEnvironment(goal_state, goal_tolerance, beta,
                 planning_horizon, rob_init_pos, rob_A_mat, rob_B_mat, obs_field_of_view_rad,
-                obs_interval, rob_state_max, rob_input_max, sampling_time)
+                obs_interval, rob_state_max, rob_input_max, sampling_time, rob_obs_strat)
 
     # Add the first obstacle
     obs_1_init = np.array([-7.65,-5.2])
@@ -585,15 +592,38 @@ if __name__ == '__main__':
     robotic_agent_environ.add_linear_obstacle(obs_1_init,obs_1_A_matrix,
         obs_1_F_matrix,obs_1_mean_vec,obs_1_cov_mat,obs_1_radius)
 
+    # Add the second obstacle
+    obs_2_init = np.array([3.4, 2.8])
+    obs_2_A_matrix = np.eye(2)
+    obs_2_F_matrix = np.eye(2)
+    obs_2_mean_vec = np.array([-8.8, -8.8])
+    obs_2_cov_mat = np.array([[70, 18], [18, 70]])
+    obs_2_radius = 0.5
+    robotic_agent_environ.add_linear_obstacle(obs_2_init, obs_2_A_matrix,
+        obs_2_F_matrix, obs_2_mean_vec, obs_2_cov_mat, obs_2_radius)
+
     # Now, while we have not reached the target point, continue executing the controller
     while robotic_agent_environ.continue_condition:
 
         # Resolve the problem
         robotic_agent_environ.solve_optim_prob_and_update()
 
+        # Agent
         next_p = robotic_agent_environ.nominal_trajectory[:,0]
         next_point = Point(float(next_p[0]),float(next_p[1]),None)
-        vel_controller.go_to_point(next_point)
+
+        # Obstacle 1
+        obs_1_n = robotic_agent_environ.lin_obs_list[0].act_position
+        obs_1_np = Point(float(obs_1_n[0]),float(obs_1_n[1]),None)
+
+        # Obstacle 2
+        obs_2_n = robotic_agent_environ.lin_obs_list[1].act_position
+        obs_2_np = Point(float(obs_2_n[0]),float(obs_2_n[1]),None)
+
+        # Update controllers
+        vel_controller_0.go_to_point(next_point)
+        vel_controller_1.go_to_point(obs_1_np)
+        vel_controller_2.go_to_point(obs_2_np)
 
         # Update the robotic agent's position
-        robotic_agent_environ.rob_pos = np.array([vel_controller.x, vel_controller.y])
+        robotic_agent_environ.rob_pos = np.array([vel_controller_0.x, vel_controller_0.y])
