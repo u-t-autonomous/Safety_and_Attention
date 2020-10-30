@@ -482,12 +482,12 @@ class RobotSaAEnvironment:
             angle = np.rad2deg(math.atan2(eig_vecs[0, 1], eig_vecs[0, 0]))
 
             if len(cur_obs_ell_list) < 20:
-                cur_obs_ell_list.insert(0,Ellipse(obs_center, 2 / np.sqrt(eigs[0]),
-                                       2 / np.sqrt(eigs[1]), -angle))
+                cur_obs_ell_list.insert(0, Ellipse(obs_center, 2 / np.sqrt(eigs[0]),
+                                                   2 / np.sqrt(eigs[1]), -angle))
                 if self.lin_obs_list[j].observed_last_step:
-                    cur_obs_ell_col_list.insert(0,'b')
+                    cur_obs_ell_col_list.insert(0, 'b')
                 else:
-                    cur_obs_ell_col_list.insert(0,'r')
+                    cur_obs_ell_col_list.insert(0, 'r')
             else:
                 cur_obs_ell_list.insert(0, Ellipse(obs_center, 2 / np.sqrt(eigs[0]),
                                                    2 / np.sqrt(eigs[1]), -angle))
@@ -497,23 +497,41 @@ class RobotSaAEnvironment:
                     cur_obs_ell_col_list.insert(0, 'r')
                 cur_obs_ell_list.pop()
                 cur_obs_ell_col_list.pop()
+            # Not sure if this is necessary, but resave the current obstacle's ellipse list
+            self.lin_obs_list[j].ellipse_list = cur_obs_ell_list
+            self.lin_obs_list[j].ellipse_color_list = cur_obs_ell_col_list
 
-            cur_obs_ell_collection = PatchCollection(cur_obs_ell_list,
-                facecolors=cur_obs_ell_col_list,alpha=0.3,zorder=0)
+            # cur_obs_ell_collection = PatchCollection(cur_obs_ell_list,
+            #                                          facecolors=cur_obs_ell_col_list, alpha=0.3, zorder=0)
+            #
+            # # cur_obs_ell_collection.set_alphas([0.4/(t_step+1) for t_step in range(len(cur_obs_ell_list))])
+            #
+            # self.lin_obs_list[j].ell_collection = cur_obs_ell_collection
+            #
+            # self.ax.add_collection(self.lin_obs_list[j].ell_collection)
 
-            #cur_obs_ell_collection.set_alphas([0.4/(t_step+1) for t_step in range(len(cur_obs_ell_list))])
-
-            self.lin_obs_list[j].ell_collection = cur_obs_ell_collection
-
-            self.ax.add_collection(self.lin_obs_list[j].ell_collection)
-
+        all_obstacle_ell_coll = []
+        for t_step in range(len(self.lin_obs_list[0].ellipse_list)):
+            if t_step == 0:
+                cur_ell_list = [self.lin_obs_list[0].ellipse_list[t_step], self.lin_obs_list[1].ellipse_list[t_step]]
+                cur_ell_col_list = [self.lin_obs_list[0].ellipse_color_list[t_step],
+                                    self.lin_obs_list[1].ellipse_color_list[t_step]]
+                all_obstacle_ell_coll = [PatchCollection(cur_ell_list,facecolors=cur_ell_col_list,alpha=0.4/(t_step+1))]
+            else:
+                cur_ell_list = [self.lin_obs_list[0].ellipse_list[t_step], self.lin_obs_list[1].ellipse_list[t_step]]
+                cur_ell_col_list = [self.lin_obs_list[0].ellipse_color_list[t_step],
+                                    self.lin_obs_list[1].ellipse_color_list[t_step]]
+                cur_patch_coll = PatchCollection(cur_ell_list,facecolors=cur_ell_col_list,alpha=0.4/(t_step+1))
+                all_obstacle_ell_coll.append(cur_patch_coll)
+        for t_step in range(len(self.lin_obs_list[0].ellipse_list)):
+            self.ax.add_collection(all_obstacle_ell_coll[t_step])
 
         # Update agent trajectory and nominal future trajectory
         nominal_trajectory_plot = plt.scatter(np.hstack((self.rob_pos[0],
-                               robot_RHC_trajectory_state_x_time[0, :])),
-                    np.hstack((self.rob_pos[1],
-                               robot_RHC_trajectory_state_x_time[1, :])), 2,
-                    marker='o', color='c')  # 'b:')
+                                                         robot_RHC_trajectory_state_x_time[0, :])),
+                                              np.hstack((self.rob_pos[1],
+                                                         robot_RHC_trajectory_state_x_time[1, :])), 2,
+                                              marker='o', color='c')  # 'b:')
         plt.scatter(self.rob_pos[0],
                     self.rob_pos[1], 10, marker='x', color='k')
 
@@ -522,17 +540,18 @@ class RobotSaAEnvironment:
         obs_y = [self.lin_obs_list[i].act_position[1] for i in range(self.num_lin_obs)]
         plt.scatter(obs_x, obs_y, 10, marker='x', color='r')
 
-        ellipse_collection = PatchCollection(obs_ellipse,facecolor='r', alpha=0.3, zorder=0)
+        ellipse_collection = PatchCollection(obs_ellipse, facecolor='r', alpha=0.3, zorder=0)
         self.ax.add_collection(ellipse_collection)
 
         plt.draw()
         plt.pause(0.001)
 
         # Remove the old ellipse collection, nominal trajectory
-        for j in range(self.num_lin_obs):
-            self.lin_obs_list[j].ell_collection.remove()
+        # for j in range(self.num_lin_obs):
+        #     self.lin_obs_list[j].ell_collection.remove()
+        for t_step in range(len(self.lin_obs_list[0].ellipse_list)):
+            all_obstacle_ell_coll[t_step].remove()
         nominal_trajectory_plot.remove()
-
 
         return robot_RHC_trajectory_state_x_time
 
