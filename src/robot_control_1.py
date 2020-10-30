@@ -501,6 +501,7 @@ class ReadyTool:
                 print("Waiting to start")
                 flag = True
             rospy.sleep(0.01)
+        self.ready = False
 
 
 def make_user_wait(msg="Enter exit to exit"):
@@ -528,6 +529,7 @@ if __name__ == '__main__':
     # Set the initial point of the robotic agent in the Gazebo world (make sure this
     # is the same as the initial position in the Safety and Attention environment)
     init_point_1 = Point(-7.65, -5.2, None)
+    vel_controller_1.go_to_point(init_point_1)
 
     # Dynamics of first obstacle
     sampling_time = 0.05
@@ -538,17 +540,30 @@ if __name__ == '__main__':
 
     # Generate a set of waypoints for the first obstacle to follow
     num_steps = 200
-    traj = [init_point_1]
-    for step in range(1,num_steps):
-        # Query the previous point in the set of waypoints
-        prev_x = traj[step-1].x
-        prev_y = traj[step-1].y
-        prev_state = np.array([prev_x,prev_y])
-        # Push this point through the dynamics
-        obs_w_step = np.random.multivariate_normal(obs_1_mean_vec,obs_1_cov_mat,1)
-        new_state = np.matmul(obs_1_A_matrix,prev_state) + np.matmul(obs_1_F_matrix,obs_w_step)
-        new_point = Point(float(new_state[0]),float(new_state[1]),0.0)
-        traj.append(new_point)
+    traj = []
+    for step in range(0,num_steps):
+        if step == 0:
+            # Query the previous point in the set of waypoints
+            prev_x = init_point_1.x
+            prev_y = init_point_1.y
+            prev_state = np.array([prev_x,prev_y])
+            # Push this point through the dynamics
+            obs_w_step = np.random.multivariate_normal(obs_1_mean_vec,obs_1_cov_mat,1)
+            obs_w_step = np.reshape(obs_w_step, (2,))
+            new_state = np.matmul(obs_1_A_matrix,prev_state) + np.matmul(obs_1_F_matrix,obs_w_step)
+            new_point = Point(float(new_state[0]),float(new_state[1]), None)
+            traj = [new_point]
+        else:
+            # Query the previous point in the set of waypoints
+            prev_x = traj[step-1].x
+            prev_y = traj[step-1].y
+            prev_state = np.array([prev_x, prev_y])
+            # Push this point through the dynamics
+            obs_w_step = np.random.multivariate_normal(obs_1_mean_vec, obs_1_cov_mat, 1)
+            obs_w_step = np.reshape(obs_w_step, (2,))
+            new_state = np.matmul(obs_1_A_matrix, prev_state) + np.matmul(obs_1_F_matrix, obs_w_step)
+            new_point = Point(float(new_state[0]), float(new_state[1]), None)
+            traj.append(new_point)
 
     # Make a ReadyTool to wait for the ready start signal
     rdy = ReadyTool()
