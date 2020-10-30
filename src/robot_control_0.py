@@ -10,18 +10,20 @@ import tf2_ros
 import tf2_geometry_msgs
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Twist, Point, PoseStamped
+from std_msgs.msg import Bool
 import laser_geometry.laser_geometry as lg
 import sensor_msgs.point_cloud2 as pc2
 from sensor_msgs.msg import LaserScan, PointCloud2
 from tf.transformations import euler_from_quaternion
-# from grid_state_converter import *
+from Safety_and_Attention.msg import Ready
+import time
 # Imports for Algorithm side
 import copy
 import random
 # from partial_semantics import *
 # Rviz
 # from visualization_msgs.msg import Marker
-from std_msgs.msg import ColorRGBA, Bool
+from std_msgs.msg import ColorRGBA
 from geometry_msgs.msg import Quaternion, Vector3
 
 
@@ -485,24 +487,43 @@ def make_array(scan, vis, occl, array_shape):
 
 class ReadyTool:
     """Tool to help control the executions of multiple nodes from a master node"""
-    def __init__(self, ready_topic_name='/ready_start_cmd'):
-        self.ready = False
-        self.__ready_wait_sub = rospy.Subscriber(ready_topic_name, Bool, self.__readyCB )
+    def __init__(self, robot_name='tb3_0', ready_topic_name='/ready_start_cmd'):
+        # self.ready = False
+        # self.__ready_wait_sub = rospy.Subscriber(ready_topic_name, Bool, self.__readyCB )
         ''' **** PUT A PUBLISHER HERE **** '''
         # self.__pub = rospy.Publisher('/ready_start_cmd', Bool, queue_size=1)
 
-    def __readyCB(self, msg):
-        self.ready = msg
+
+        # Set up flags for sim start as well as Set Ready start value
+        self.flag_val = False
+        self.ready2start = Ready()
+        self.ready2start.name = robot_name
+        self.ready2start.ready = False
+        self.flag_pub = rospy.Publisher('/tb3_' + str(robot_name[-1]) + '/ready_start', Ready, queue_size=1)
+        rospy.Subscriber('/ready_start_cmd', Bool, self.flagCB)
+
+    def flagCB(self, msg):
+        self.flag_val = msg.data
+
+    def set_ready(self, val):
+        self.ready2start.ready = val
+        # self.flag_vals[self.platform_id] = val
+        t_end = time.time() + 0.1
+        while time.time() < t_end:
+            self.flag_pub.publish(self.ready2start)
+
+    def wait_to_move(self):
+        rospy.sleep(10)
 
     def wait_for_ready(self):
-        flag = False
-        while not self.ready:
-            if not flag:
-                print("Waiting to start")
-                flag = True
+        # check = False
+        while not self.flag_val:
+            # if not check:
+            #     print("Waiting to start")
+            #     check = True
             rospy.sleep(0.01)
-        self.ready = False
-
+        print("*** robot {} is starting ***".format(int(self.ready2start.name[-1])))
+        # self.flag_val = False
 
 def make_user_wait(msg="Enter exit to exit"):
     data = raw_input(msg + "\n")
@@ -522,19 +543,15 @@ if __name__ == '__main__':
     rospy.init_node("robot_control_0_node", anonymous=True)
     wait_for_time()
 
-    # Create velocity controller and converter objects
+    # Create velocity controllers
+    robot_name='tb3_0'
     vel_controller_0 = VelocityController('/tb3_0/odom', '/tb3_0/cmd_vel')
     vel_controller_1 = VelocityController('/tb3_1/odom', '/tb3_1/cmd_vel')
     vel_controller_2 = VelocityController('/tb3_2/odom', 'tb3_2/cmd_vel')
     rospy.sleep(1.0)
-    
-    # Make a ReadyTool to wait for the ready start signal
-    # rdy = ReadyTool()
-    # rdy.wait_for_ready()
-    # print("Robot 0 made it past Ready Check *")
-    #sys.exit()
 
-    # Set up the safety and attention environment to perform the planning in
+
+    ''' Set up the safety and attention environment to perform the planning in '''
 
     # Set the initial point of the robotic agent in the Gazebo world (make sure this
     # is the same as the initial position in the Safety and Attention environment
@@ -612,24 +629,30 @@ if __name__ == '__main__':
     robotic_agent_environ.add_linear_obstacle(obs_2_init, obs_2_A_matrix,
                                               obs_2_F_matrix, obs_2_mean_vec, obs_2_cov_mat, obs_2_radius)
 
-    # Make a ReadyTool to wait for the ready start signal
-    rdy = ReadyTool()
+    # Wait until all other robots are ready
+    rdy = ReadyTool(robot_name)
+    print("*** Robot {} is ready and waiting to start ***".format(int(robot_name[-1])))
+    rdy.set_ready(True)
     rdy.wait_for_ready()
-    print("Robot 1 made it past Ready Check *")
+    print("Robot {} made it past Ready Check *".format(int(robot_name[-1]))) # Comment when done testing
+    sys.exit() # Comment when done testing
 
     # Now, while we have not reached the target point, continue executing the controller
     while robotic_agent_environ.continue_condition:
-
         # Resolve the problem and extract the next state to transition to, pass
         # this value to the velocity controller
         robotic_agent_environ.solve_optim_prob_and_update()
         next_p = robotic_agent_environ.nominal_trajectory[:, 0]
         next_point = Point(float(next_p[0]), float(next_p[1]), None)
-        vel_controller_0.go_to_point(next_point)
 
-        # Wait for the agent and the obstacles to have synchronized to their
-        # next state
+
+        rdy.set_ready(False)
+        vel_controller_0.go_to_point(next_point)
+        rdy.set_ready(True)
+        # Wait for the agent and the obstacles to have synchronized to their next state
         rdy.wait_for_ready()
+        print("Robot {} is moving to the next waypoint *".format(int(robot_name[-1])))
+
 
         # Query the current position of each obstacle
         obs_1_x = vel_controller_1.x
