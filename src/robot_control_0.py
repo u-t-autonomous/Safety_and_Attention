@@ -520,7 +520,7 @@ class ReadyTool:
             #     print("Waiting to start")
             #     check = True
             rospy.sleep(0.01)
-        print("*** robot 0 is starting ***")
+        print("*** robot {} is starting ***".format(int(self.ready2start.name[-1])))
         # self.flag_val = False
 
 def make_user_wait(msg="Enter exit to exit"):
@@ -548,8 +548,6 @@ if __name__ == '__main__':
     vel_controller_2 = VelocityController('/tb3_2/odom', 'tb3_2/cmd_vel')
     rospy.sleep(1.0)
 
-    # Tool to control program flow
-    rdy = ReadyTool(robot_name)
 
     ''' Set up the safety and attention environment to perform the planning in '''
 
@@ -630,6 +628,7 @@ if __name__ == '__main__':
                                               obs_2_F_matrix, obs_2_mean_vec, obs_2_cov_mat, obs_2_radius)
 
     # Wait until all other robots are ready
+    rdy = ReadyTool(robot_name)
     print("*** Robot {} is ready and waiting to start ***".format(int(robot_name[-1])))
     rdy.set_ready(True)
     rdy.wait_for_ready()
