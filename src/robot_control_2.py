@@ -15,6 +15,7 @@ import sensor_msgs.point_cloud2 as pc2
 from sensor_msgs.msg import LaserScan, PointCloud2
 from tf.transformations import euler_from_quaternion
 from Safety_and_Attention.msg import Ready
+import time
 # from grid_state_converter import *
 # Imports for Algorithm side
 import copy
@@ -502,7 +503,7 @@ class ReadyTool:
         rospy.Subscriber('/ready_start_cmd', Bool, self.flagCB)
 
     def flagCB(self, msg):
-        self.flag_val = msg
+        self.flag_val = msg.data
 
     def set_ready(self, val):
         self.ready2start.ready = val
@@ -592,8 +593,8 @@ if __name__ == '__main__':
     print("*** Robot {} is ready and waiting to start ***".format(int(robot_name[-1])))
     rdy.set_ready(True)
     rdy.wait_for_ready()
-    print("Robot {} made it past Ready Check *".format(int(robot_name[-1]))) # Comment when done testing
-    sys.exit() # Comment when done testing
+    # print("Robot {} made it past Ready Check *".format(int(robot_name[-1]))) # Comment when done testing
+    # sys.exit() # Comment when done testing
 
     # Now, while we have not reached the target point, continue executing the controller
     while not rospy.is_shutdown():

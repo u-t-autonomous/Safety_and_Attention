@@ -25,16 +25,17 @@ class Commander:
         id_num = int(msg.name[-1])
         self.flag_vals[id_num] = msg.ready
 
-    def set_ready(self, val):
+    def set_ready(self, value):
         t_end = time.time() + 2
         while time.time() < t_end:
-            self.pub.publish(val)
+            self.pub.publish(value)
 
 
 if __name__ == "__main__":
     rospy.init_node('robot_command', anonymous=True)
     cmd = Commander(3)
     flag = False # So we can print info the FIRST time the loop waits for the vehicles
+    # cmd.set_ready(False)
     while not rospy.is_shutdown():
         if not flag:
             print("--- Waiting for robots to indicate READY ---")
