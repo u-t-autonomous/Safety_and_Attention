@@ -14,7 +14,7 @@ import laser_geometry.laser_geometry as lg
 import sensor_msgs.point_cloud2 as pc2
 from sensor_msgs.msg import LaserScan, PointCloud2
 from tf.transformations import euler_from_quaternion
-# from grid_state_converter import *
+from Safety_and_Attention.msg import Ready
 # Imports for Algorithm side
 import copy
 import random
@@ -485,23 +485,43 @@ def make_array(scan, vis, occl, array_shape):
 
 class ReadyTool:
     """Tool to help control the executions of multiple nodes from a master node"""
-    def __init__(self, ready_topic_name='/ready_start_cmd'):
-        self.ready = False
-        self.__ready_wait_sub = rospy.Subscriber(ready_topic_name, Bool, self.__readyCB )
+    def __init__(self, robot_name='tb3_0', ready_topic_name='/ready_start_cmd'):
+        # self.ready = False
+        # self.__ready_wait_sub = rospy.Subscriber(ready_topic_name, Bool, self.__readyCB )
         ''' **** PUT A PUBLISHER HERE **** '''
         # self.__pub = rospy.Publisher('/ready_start_cmd', Bool, queue_size=1)
 
-    def __readyCB(self, msg):
-        self.ready = msg
+
+        # Set up flags for sim start as well as Set Ready start value
+        self.flag_val = False
+        self.ready2start = Ready()
+        self.ready2start.name = robot_name
+        self.ready2start.ready = False
+        self.flag_pub = rospy.Publisher('/tb3_' + str(robot_name[-1]) + '/ready_start', Ready, queue_size=1)
+        rospy.Subscriber('/ready_start_cmd', Bool, self.flagCB)
+
+    def flagCB(self, msg):
+        self.flag_val = msg
+
+    def set_ready(self, val):
+        self.ready2start.ready = val
+        # self.flag_vals[self.platform_id] = val
+        t_end = time.time() + 0.1
+        while time.time() < t_end:
+            self.flag_pub.publish(self.ready2start)
+
+    def wait_to_move(self):
+        rospy.sleep(10)
 
     def wait_for_ready(self):
-        flag = False
-        while not self.ready:
-            if not flag:
-                print("Waiting to start")
-                flag = True
+        # check = False
+        while not self.flag_val:
+            # if not check:
+            #     print("Waiting to start")
+            #     check = True
             rospy.sleep(0.01)
-
+        print("*** robot 0 is starting ***")
+        # self.flag_val = False
 
 def make_user_wait(msg="Enter exit to exit"):
     data = raw_input(msg + "\n")
@@ -521,6 +541,7 @@ if __name__ == '__main__':
 
     # Create velocity controller and converter objects
     vel_controller = VelocityController('/tb3_0/odom', '/tb3_0/cmd_vel')
+    robot_name='tb3_0'
     rospy.sleep(1.0)
 
     # # Set the initial point of the robotic agent in the Gazebo world (make sure this
@@ -528,80 +549,87 @@ if __name__ == '__main__':
     # init_point = Point(0, 0, None)
     # vel_controller.go_to_point(init_point)
     
-    # Make a ReadyTool to wait for the ready start signal
-    rdy = ReadyTool()
+    rdy = ReadyTool(robot_name)
+    # Wait until all other robots are ready
+    print("*** Robot {} is ready and waiting to start ***".format(int(robot_name[-1])))
+    rdy.set_ready(True)
     rdy.wait_for_ready()
-    print("Robot 0 made it past Ready Check *")
+    print("Robot {} made it past Ready Check *".format(int(robot_name[-1])))
     sys.exit()
 
-    # # Set up the safety and attention environment to perform the planning in
+    # Set up the safety and attention environment to perform the planning in
 
-    # # Robotic agent follows linear dynamics x_k+1 = A*x_k + B*u_k
-    # rob_A_mat = np.eye(2)
-    # rob_B_mat = np.eye(2)
+    # Robotic agent follows linear dynamics x_k+1 = A*x_k + B*u_k
+    rob_A_mat = np.eye(2)
+    rob_B_mat = np.eye(2)
 
-    # # Define the state that the robotic agent must travel to and the L2-norm
-    # # tolerance for which we can say that the agent "reached" that state
-    # target_state = np.array([-1.5,-1.5])
-    # target_tolerance = 5e-2
+    # Define the state that the robotic agent must travel to and the L2-norm
+    # tolerance for which we can say that the agent "reached" that state
+    target_state = np.array([-1.5,-1.5])
+    target_tolerance = 5e-2
 
-    # # Parameter for constructing Gaussian level sets of obstacle positions
-    # # A lower beta means that the "keep-out region" is larger
-    # beta = 0.01
+    # Parameter for constructing Gaussian level sets of obstacle positions
+    # A lower beta means that the "keep-out region" is larger
+    beta = 0.01
 
-    # # Number of time steps into the future that the robotic agent must plan
-    # planning_horizon = 5
+    # Number of time steps into the future that the robotic agent must plan
+    planning_horizon = 5
 
-    # # Initial position of the robotic agent in the environment
-    # rob_init_pos = np.array([0, 0])
+    # Initial position of the robotic agent in the environment
+    rob_init_pos = np.array([0, 0])
 
-    # # The size of the circle (assumed to be in meters?) for which the robotic
-    # # agent can make an observation about an obstacle if the obstacle is within
-    # # that position.
-    # obs_field_of_view_rad = 3
+    # The size of the circle (assumed to be in meters?) for which the robotic
+    # agent can make an observation about an obstacle if the obstacle is within
+    # that position.
+    obs_field_of_view_rad = 3
 
-    # # The number of time steps between subsequent opportunities for the robotic
-    # # agent to make an observation
-    # obs_interval = 1
+    # The number of time steps between subsequent opportunities for the robotic
+    # agent to make an observation
+    obs_interval = 1
 
-    # # Assuming a square, the absolute value in the L1 sense that the position of
-    # # the robotic agent can be in any of the cardinal directions
-    # rob_state_max = 10
+    # Assuming a square, the absolute value in the L1 sense that the position of
+    # the robotic agent can be in any of the cardinal directions
+    rob_state_max = 10
 
-    # # This parameter is for how large of "steps" the difference in waypoints can be,
-    # # not really a physical parameter and we will likely need to adjust this
-    # rob_input_max = 10
+    # This parameter is for how large of "steps" the difference in waypoints can be,
+    # not really a physical parameter and we will likely need to adjust this
+    rob_input_max = 10
 
-    # # Time between subsequent time steps "k" and "k+1" (again, not really a physical
-    # # parameter, will probably need to play around with this value)
-    # sampling_time = 0.01
+    # Time between subsequent time steps "k" and "k+1" (again, not really a physical
+    # parameter, will probably need to play around with this value)
+    sampling_time = 0.01
 
-    # # Now that we have all of the ingredients, create the robot safety and
-    # # attention environment
-    # robotic_agent_environ = RobotSaAEnvironment(target_state, target_tolerance, beta,
-    #             planning_horizon, rob_init_pos, rob_A_mat, rob_B_mat, obs_field_of_view_rad,
-    #             obs_interval, rob_state_max, rob_input_max, sampling_time)
+    # Now that we have all of the ingredients, create the robot safety and
+    # attention environment
+    robotic_agent_environ = RobotSaAEnvironment(target_state, target_tolerance, beta,
+                planning_horizon, rob_init_pos, rob_A_mat, rob_B_mat, obs_field_of_view_rad,
+                obs_interval, rob_state_max, rob_input_max, sampling_time)
 
-    # # Add the first obstacle
-    # obs_1_init = np.array([-0.75,-0.75])
-    # obs_1_A_matrix = np.eye(2)
-    # obs_1_F_matrix = np.eye(2)
-    # obs_1_mean_vec = np.array([0,0])
-    # obs_1_cov_mat = np.eye(2)
-    # obs_1_radius = 0.5
-    # robotic_agent_environ.add_linear_obstacle(obs_1_init,obs_1_A_matrix,
-    #     obs_1_F_matrix,obs_1_mean_vec,obs_1_cov_mat,obs_1_radius)
+    # Add the first obstacle
+    obs_1_init = np.array([-0.75,-0.75])
+    obs_1_A_matrix = np.eye(2)
+    obs_1_F_matrix = np.eye(2)
+    obs_1_mean_vec = np.array([0,0])
+    obs_1_cov_mat = np.eye(2)
+    obs_1_radius = 0.5
+    robotic_agent_environ.add_linear_obstacle(obs_1_init,obs_1_A_matrix,
+        obs_1_F_matrix,obs_1_mean_vec,obs_1_cov_mat,obs_1_radius)
 
 
-    # # Now, while we have not reached the target point, continue executing the controller
-    # while robotic_agent_environ.continue_condition:
+    # Now, while we have not reached the target point, continue executing the controller
+    while robotic_agent_environ.continue_condition:
 
-    #     # Resolve the problem
-    #     robotic_agent_environ.solve_optim_prob_and_update()
+        # Resolve the problem
+        robotic_agent_environ.solve_optim_prob_and_update()
 
-    #     next_p = robotic_agent_environ.nominal_trajectory[:,0]
-    #     next_point = Point(float(next_p[0]),float(next_p[1]),None)
-    #     vel_controller.go_to_point(next_point)
+        next_p = robotic_agent_environ.nominal_trajectory[:,0]
+        next_point = Point(float(next_p[0]),float(next_p[1]),None)
 
-    #     # Update the robotic agent's position
-    #     robotic_agent_environ.rob_pos = np.array([vel_controller.x, vel_controller.y])
+        rdy.set_ready(False)
+        vel_controller.go_to_point(next_point)
+        rdy.set_ready(True)
+        rdy.wait_for_ready()
+        print("Robot {} is moving to the next waypoint *".format(int(robot_name[-1])))
+
+        # Update the robotic agent's position
+        robotic_agent_environ.rob_pos = np.array([vel_controller.x, vel_controller.y])
