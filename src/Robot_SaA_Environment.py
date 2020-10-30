@@ -215,6 +215,10 @@ class RobotSaAEnvironment:
         input: robot_act_pos: the ACTUAL position of the robotic agent in
         return: rob_traj: set of waypoints for the robotic agent to follow
         return: obs_traj: next waypoint for each of the obstacles to travel to
+
+        NOTE: obs_act_positions is obtained from querying the ros velocity controller
+            associated with that obstacle!
+
         """
 
         # Update the number of time steps considered
@@ -224,6 +228,9 @@ class RobotSaAEnvironment:
         # agent for the current time step
         self.nominal_trajectory = self.linear_dynamics_planning()
 
+        return self.nominal_trajectory
+
+    def update_obs_positions_and_plots(self, obs_act_positions):
         # Now, iterate through the obstacles and update their
         # simulated and actual positions
         obs_index = 0
@@ -234,13 +241,17 @@ class RobotSaAEnvironment:
             for j in range(self.num_lin_obs):
                 # Access the current obstacle
                 cur_obs = self.lin_obs_list[j]
+                # Access the true state of the obstacle
+                cur_obs_physical_state = obs_act_positions[j]
                 # If this obstacle was deemed to be the most relevant, attempt to make
                 # an observation about it
                 if obs_index == np.argmax(self.dual_var_metric):
-                    cur_obs.update_obstacle_position(1,self.rob_pos,self.obs_field_of_view_rad)
+                    cur_obs.update_obstacle_position(1,self.rob_pos,self.obs_field_of_view_rad,
+                                                     cur_obs_physical_state)
                     obs_index += 1
                 else:
-                    cur_obs.update_obstacle_position(0,self.rob_pos,self.obs_field_of_view_rad)
+                    cur_obs.update_obstacle_position(0,self.rob_pos,self.obs_field_of_view_rad,
+                                                     cur_obs_physical_state)
                     obs_index += 1
             # Repeat the process for the nonlinear obstacles
             for j in range(self.num_nonlin_obs):
@@ -253,9 +264,11 @@ class RobotSaAEnvironment:
                     obs_index += 1
         else:
             # Never give the opportunity to make an observation about an obstacle
-            for j in range(self.num_nonlin_obs):
+            for j in range(self.num_lin_obs):
                 cur_obs = self.lin_obs_list[j]
-                cur_obs.update_obstacle_position(0,self.rob_pos,self.obs_field_of_view_rad)
+                cur_obs_physical_state = obs_act_positions[j]
+                cur_obs.update_obstacle_position(0,self.rob_pos,self.obs_field_of_view_rad,
+                                                 cur_obs_physical_state)
             for j in range(self.num_nonlin_obs):
                 cur_obs = self.nonlin_obs_list[j]
                 cur_obs.update_obstacle_position(0,self.rob_pos,self.obs_field_of_view_rad)
@@ -263,24 +276,26 @@ class RobotSaAEnvironment:
         if np.linalg.norm(self.rob_pos-self.target_state) <= self.target_tolerance:
             self.continue_condition = False
 
-        print('----------')
-        print(self.dual_var_metric)
-        for obs in range(2):
-            print(self.lin_obs_list[obs].sig_mat)
+        # print('----------')
+        # print(self.dual_var_metric)
+        # for obs in range(2):
+        #     print(self.lin_obs_list[obs].sig_mat)
 
         # Reset the dual variable metric counter to all zeros
         self.dual_var_metric = [0 for i in range(len(self.dual_var_metric))]
 
-        print(self.dual_var_metric)
-        print('----------')
+        # print(self.dual_var_metric)
+        # print('----------')
 
-        return self.nominal_trajectory
+        return
 
     def linear_dynamics_planning(self):
         """
         Given state of robotic agent's environment, construct a new trajectory
         to follow (i.e. generate a set of waypoints to send to the agent)
         """
+
+        np.random.seed(0)
 
         # Set up optimization problem to run in ECOS...
 
@@ -484,9 +499,9 @@ class RobotSaAEnvironment:
                 cur_obs_ell_col_list.pop()
 
             cur_obs_ell_collection = PatchCollection(cur_obs_ell_list,
-                facecolors=cur_obs_ell_col_list,alpha=0.40,zorder=0)
+                facecolors=cur_obs_ell_col_list,alpha=0.3,zorder=0)
 
-            cur_obs_ell_collection.set_alphas([0.4/(t_step+1) for t_step in range(len(cur_obs_ell_list))])
+            #cur_obs_ell_collection.set_alphas([0.4/(t_step+1) for t_step in range(len(cur_obs_ell_list))])
 
             self.lin_obs_list[j].ell_collection = cur_obs_ell_collection
 
@@ -494,7 +509,7 @@ class RobotSaAEnvironment:
 
 
         # Update agent trajectory and nominal future trajectory
-        plt.scatter(np.hstack((self.rob_pos[0],
+        nominal_trajectory_plot = plt.scatter(np.hstack((self.rob_pos[0],
                                robot_RHC_trajectory_state_x_time[0, :])),
                     np.hstack((self.rob_pos[1],
                                robot_RHC_trajectory_state_x_time[1, :])), 2,
@@ -513,9 +528,11 @@ class RobotSaAEnvironment:
         plt.draw()
         plt.pause(0.001)
 
-        # Remove the old ellipse collection
+        # Remove the old ellipse collection, nominal trajectory
         for j in range(self.num_lin_obs):
             self.lin_obs_list[j].ell_collection.remove()
+        nominal_trajectory_plot.remove()
+
 
         return robot_RHC_trajectory_state_x_time
 
@@ -559,7 +576,7 @@ class LinearObstacle:
         self.observed_last_step = False
 
     def update_obstacle_position(self,query_obs_pos,rob_act_pos,
-                                 rob_field_of_view_rad):
+                                 rob_field_of_view_rad,current_physical_state):
         """
         input: robot_act_pos: actual position of robot in the environment, given
             by oracle (only queried when specifically chosen to make an observation of)
@@ -568,15 +585,17 @@ class LinearObstacle:
         input: rob_act_pos: position of the robotic agent in the environment
         input: rob_field_of_view_rad: radius for which the agent can make an observation
             of an obstacle if they are within this distance
+
+        NOTE: current_physical_state obtained by the ros velocity controller
         """
 
-        # Sample noise given system parameters
-        noise_cur_t_step = np.reshape(np.random.multivariate_normal(
-            self.w_mean_vec, self.w_cov_mat, 1),(2,))
+        # # Sample noise given system parameters
+        # noise_cur_t_step = np.reshape(np.random.multivariate_normal(
+        #     self.w_mean_vec, self.w_cov_mat, 1),(2,))
 
-        # Push through the linear dynamics to obtain obstacle's ACTUAL position
-        self.act_position = np.matmul(self.A_matrix,self.act_position) \
-            + np.matmul(self.F_matrix,noise_cur_t_step)
+        # # Push through the linear dynamics to obtain obstacle's ACTUAL position
+        # self.act_position = np.matmul(self.A_matrix,self.act_position) \
+        #     + np.matmul(self.F_matrix,noise_cur_t_step)
 
         # Update the robotic agent's understanding of the
         # obstacle's position (the SIMULATION position, uncertainty ellipsoid)
@@ -584,7 +603,12 @@ class LinearObstacle:
         # 0 / FALSE: do not query the obstacle position at this time step
         # 1 / TRUE: attempt to make an observation about the obstacle's position
         if query_obs_pos == 0:
-            # If not making an observation, push current position and
+
+            # Update the true underlying state of the current obstacle, as determined by the
+            # ros velocity controller
+            self.act_position = current_physical_state
+
+            # If not making an observation, push current estimated position and
             # uncertainty through the system dynamics
             A_mat = self.A_matrix
             F_mat = self.F_matrix
@@ -592,13 +616,26 @@ class LinearObstacle:
             self.sig_mat = np.matmul(A_mat,np.matmul(self.sig_mat,np.transpose(A_mat))) \
                            + np.matmul(F_mat,np.matmul(self.w_cov_mat,np.transpose(F_mat)))
             self.observed_last_step = False
+
         else:
+
             if np.linalg.norm(rob_act_pos - self.act_position) <= rob_field_of_view_rad:
+
+                # Update the true underlying state of the current obstacle, as determined by the
+                # ros velocity controller
+                self.act_position = current_physical_state
+
                 # Assume a perfect observation
                 self.sim_position = self.act_position
                 self.sig_mat = np.zeros(np.shape(self.sig_mat))
                 self.observed_last_step = True
+
             else:
+
+                # Update the true underlying state of the current obstacle, as determined by the
+                # ros velocity controller
+                self.act_position = current_physical_state
+
                 # If the observation is unsuccessful, proceed as if we
                 # had not attempted to make an observation of the obstacle
                 A_mat = self.A_matrix
