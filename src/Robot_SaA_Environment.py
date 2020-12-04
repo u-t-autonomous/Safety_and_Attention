@@ -6,6 +6,11 @@
 import numpy as np
 from scipy.linalg import block_diag
 import matplotlib.pyplot as plt
+import matplotlib
+matplotlib.use("pgf")
+matplotlib.rcParams.update({
+    "pgf.texsystem": "pdflatex"
+})
 from matplotlib.patches import Polygon, Circle, Ellipse
 from matplotlib.collections import PatchCollection
 from numpy import linalg as LA
@@ -114,18 +119,20 @@ class RobotSaAEnvironment:
         # Plot the safe set
         ax.add_patch(safe_set_polygon)
         # Plot the initial and target states
-        ax.scatter(self.rob_pos[0], self.rob_pos[1], 100, color='b',
-                   label='Initial state')
-        ax.scatter(self.target_state[0], self.target_state[1], 100, color='g',
-                   label='Target state')
+        # ax.scatter(self.rob_pos[0], self.rob_pos[1], 100, color='b',
+        #            label='Initial state')
+        # ax.scatter(self.target_state[0], self.target_state[1], 100, color='g',
+        #           label='Target state')
+        ax.scatter(self.target_state[0], self.target_state[1], 100, marker='*', color='y')
 
-        sta_lim_tup = [-self.rob_state_max,self.rob_state_max]
+        sta_lim_tup = [-self.rob_state_max, self.rob_state_max]
         ax.set_xlim(sta_lim_tup)
         ax.set_ylim(sta_lim_tup)
         ax.set_aspect('equal')
-        ax.set_xlabel('x')
-        ax.set_ylabel('y')
-        leg = plt.legend(bbox_to_anchor=(1.01, 0.5))
+        ax.axis('off')
+        #ax.set_xlabel('x')
+        #ax.set_ylabel('y')
+        #leg = plt.legend(bbox_to_anchor=(1.01, 0.5))
         plt.tight_layout()
 
         return fig, ax
@@ -481,7 +488,7 @@ class RobotSaAEnvironment:
             eigs, eig_vecs = LA.eig(obs_matrix_inv)
             angle = np.rad2deg(math.atan2(eig_vecs[0, 1], eig_vecs[0, 0]))
 
-            if len(cur_obs_ell_list) < 20:
+            if len(cur_obs_ell_list) < 15:
                 cur_obs_ell_list.insert(0, Ellipse(obs_center, 2 / np.sqrt(eigs[0]),
                                                    2 / np.sqrt(eigs[1]), -angle))
                 if self.lin_obs_list[j].observed_last_step:
@@ -510,17 +517,22 @@ class RobotSaAEnvironment:
             #
             # self.ax.add_collection(self.lin_obs_list[j].ell_collection)
 
+        # Hard code the following for now...
         all_obstacle_ell_coll = []
         for t_step in range(len(self.lin_obs_list[0].ellipse_list)):
             if t_step == 0:
-                cur_ell_list = [self.lin_obs_list[0].ellipse_list[t_step], self.lin_obs_list[1].ellipse_list[t_step]]
+                cur_ell_list = [self.lin_obs_list[0].ellipse_list[t_step], self.lin_obs_list[1].ellipse_list[t_step],
+                                self.lin_obs_list[2].ellipse_list[t_step]]
                 cur_ell_col_list = [self.lin_obs_list[0].ellipse_color_list[t_step],
-                                    self.lin_obs_list[1].ellipse_color_list[t_step]]
+                                    self.lin_obs_list[1].ellipse_color_list[t_step],
+                                    self.lin_obs_list[2].ellipse_color_list[t_step]]
                 all_obstacle_ell_coll = [PatchCollection(cur_ell_list,facecolors=cur_ell_col_list,alpha=0.4/(t_step+1))]
             else:
-                cur_ell_list = [self.lin_obs_list[0].ellipse_list[t_step], self.lin_obs_list[1].ellipse_list[t_step]]
+                cur_ell_list = [self.lin_obs_list[0].ellipse_list[t_step], self.lin_obs_list[1].ellipse_list[t_step],
+                                self.lin_obs_list[2].ellipse_list[t_step]]
                 cur_ell_col_list = [self.lin_obs_list[0].ellipse_color_list[t_step],
-                                    self.lin_obs_list[1].ellipse_color_list[t_step]]
+                                    self.lin_obs_list[1].ellipse_color_list[t_step],
+                                    self.lin_obs_list[2].ellipse_color_list[t_step]]
                 cur_patch_coll = PatchCollection(cur_ell_list,facecolors=cur_ell_col_list,alpha=0.4/(t_step+1))
                 all_obstacle_ell_coll.append(cur_patch_coll)
         for t_step in range(len(self.lin_obs_list[0].ellipse_list)):
@@ -544,6 +556,8 @@ class RobotSaAEnvironment:
         self.ax.add_collection(ellipse_collection)
 
         plt.draw()
+        save_name = self.obs_strat + "_" + str(self.total_time_steps) + "_" + "fig.pgf"
+        plt.savefig(save_name)
         plt.pause(0.001)
 
         # Remove the old ellipse collection, nominal trajectory

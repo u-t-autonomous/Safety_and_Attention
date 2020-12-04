@@ -547,7 +547,8 @@ if __name__ == '__main__':
     robot_name='tb3_0'
     vel_controller_0 = VelocityController('/tb3_0/odom', '/tb3_0/cmd_vel')
     vel_controller_1 = VelocityController('/tb3_1/odom', '/tb3_1/cmd_vel')
-    vel_controller_2 = VelocityController('/tb3_2/odom', 'tb3_2/cmd_vel')
+    vel_controller_2 = VelocityController('/tb3_2/odom', '/tb3_2/cmd_vel')
+    vel_controller_3 = VelocityController('/tb3_3/odom', '/tb3_3/cmd_vel')
     rospy.sleep(1.0)
 
 
@@ -555,7 +556,7 @@ if __name__ == '__main__':
 
     # Set the initial point of the robotic agent in the Gazebo world (make sure this
     # is the same as the initial position in the Safety and Attention environment
-    init_point_0 = Point(-8, -8, None)
+    init_point_0 = Point(-4.5, -4.5, None)
     vel_controller_0.go_to_point(init_point_0)
 
     # Observation strategy of the robot. Either "bin" or "sum" (sum is preferred choice)
@@ -567,7 +568,7 @@ if __name__ == '__main__':
 
     # Define the state that the robotic agent must travel to and the L2-norm
     # tolerance for which we can say that the agent "reached" that state
-    goal_state = np.array([6, 6])
+    goal_state = np.array([4, 4])
     goal_tolerance = 5e-2
 
     # Parameter for constructing Gaussian level sets of obstacle positions
@@ -575,10 +576,10 @@ if __name__ == '__main__':
     beta = 0.01
 
     # Number of time steps into the future that the robotic agent must plan
-    planning_horizon = 20
+    planning_horizon = 30
 
     # Initial position of the robotic agent in the environment
-    rob_init_pos = np.array([-8, -8])
+    rob_init_pos = np.array([-4.5, -4.5])
 
     # The size of the circle (assumed to be in meters?) for which the robotic
     # agent can make an observation about an obstacle if the obstacle is within
@@ -591,11 +592,11 @@ if __name__ == '__main__':
 
     # Assuming a square, the absolute value in the L1 sense that the position of
     # the robotic agent can be in any of the cardinal directions
-    rob_state_max = 10
+    rob_state_max = 5
 
     # This parameter is for how large of "steps" the difference in waypoints can be,
     # not really a physical parameter and we will likely need to adjust this
-    rob_input_max = 10
+    rob_input_max = 5
 
     # Time between subsequent time steps "k" and "k+1" (again, not really a physical
     # parameter, will probably need to play around with this value)
@@ -610,60 +611,80 @@ if __name__ == '__main__':
                                                 rob_obs_strat)
 
     # Add the first obstacle
-    obs_1_init = np.array([-7.65, -5.2])
+    obs_1_init = np.array([-3.8, -2.2])
     obs_1_A_matrix = np.eye(2)
     obs_1_F_matrix = np.eye(2)
-    obs_1_mean_vec = np.array([7.5, 7.4])
+    obs_1_mean_vec = np.array([3.25, 4.25])
     obs_1_cov_mat = np.array([[2, 0.25], [0.25, 2]])
-    obs_1_radius = 1.2
+    obs_1_radius = 0.4
     robotic_agent_environ.add_linear_obstacle(obs_1_init, obs_1_A_matrix,
                                               obs_1_F_matrix, obs_1_mean_vec, obs_1_cov_mat, obs_1_radius)
 
     # Add the second obstacle
-    obs_2_init = np.array([3.4, 2.8])
+    obs_2_init = np.array([3.7, 3.0])
     obs_2_A_matrix = np.eye(2)
     obs_2_F_matrix = np.eye(2)
-    obs_2_mean_vec = np.array([-8.8, -8.8])
-    obs_2_cov_mat = np.array([[70, 18], [18, 70]])
-    obs_2_radius = 0.5
+    obs_2_mean_vec = np.array([-3.75, -3.25])
+    obs_2_cov_mat = np.array([[4.0, 1.5], [1.5, 4.0]])
+    obs_2_radius = 0.4
     robotic_agent_environ.add_linear_obstacle(obs_2_init, obs_2_A_matrix,
                                               obs_2_F_matrix, obs_2_mean_vec, obs_2_cov_mat, obs_2_radius)
+
+    # Add the third obstacle
+    obs_3_init = np.array([-2.8, -3.3])
+    obs_3_A_matrix = np.eye(2)
+    obs_3_F_matrix = np.eye(2)
+    obs_3_mean_vec = np.array([4.25, 3.25])
+    obs_3_cov_mat = np.array([[3.0, 0.75], [0.75, 3.0]])
+    obs_3_radius = 0.4
+    robotic_agent_environ.add_linear_obstacle(obs_3_init, obs_3_A_matrix,
+                                              obs_3_F_matrix, obs_3_mean_vec, obs_3_cov_mat, obs_3_radius)
 
     # Wait until all other robots are ready
     rdy = ReadyTool(robot_name)
     print("*** Robot {} is ready and waiting to start ***".format(int(robot_name[-1])))
     rdy.set_ready(True)
     rdy.wait_for_ready()
-    print("Robot {} made it past Ready Check *".format(int(robot_name[-1]))) # Comment when done testing
-    sys.exit() # Comment when done testing
+    # print("Robot {} made it past Ready Check *".format(int(robot_name[-1]))) # Comment when done testing
+    # sys.exit() # Comment when done testing
 
     # Now, while we have not reached the target point, continue executing the controller
+    solve_optimization_times = []
+    travel_to_point_times = []
     while robotic_agent_environ.continue_condition:
+
         # Resolve the problem and extract the next state to transition to, pass
         # this value to the velocity controller
+        tic_sop_1 = time.time()
         robotic_agent_environ.solve_optim_prob_and_update()
+        solve_optimization_times.append(time.time() - tic_sop_1)
         next_p = robotic_agent_environ.nominal_trajectory[:, 0]
         next_point = Point(float(next_p[0]), float(next_p[1]), None)
 
-
         rdy.set_ready(False)
+        tic_gtp_1 = time.time()
         vel_controller_0.go_to_point(next_point)
+        travel_to_point_times.append(time.time() - tic_gtp_1)
         rdy.set_ready(True)
         # Wait for the agent and the obstacles to have synchronized to their next state
         rdy.wait_for_ready()
         print("Robot {} is moving to the next waypoint *".format(int(robot_name[-1])))
-
 
         # Query the current position of each obstacle
         obs_1_x = vel_controller_1.x
         obs_1_y = vel_controller_1.y
         obs_2_x = vel_controller_2.x
         obs_2_y = vel_controller_2.y
+        obs_3_x = vel_controller_3.x
+        obs_3_y = vel_controller_3.y
         obs_1_cur_loc = np.array([obs_1_x, obs_1_y])
         obs_2_cur_loc = np.array([obs_2_x, obs_2_y])
-        obs_act_positions = [obs_1_cur_loc, obs_2_cur_loc]
-        print(obs_act_positions)
+        obs_3_cur_loc = np.array([obs_3_x, obs_3_y])
+        obs_act_positions = [obs_1_cur_loc, obs_2_cur_loc, obs_3_cur_loc]
 
         # Now, update the simulated and actual positions of the robot, obstacles.
         robotic_agent_environ.update_obs_positions_and_plots(obs_act_positions)
         robotic_agent_environ.rob_pos = np.array([vel_controller_0.x, vel_controller_0.y])
+
+    np.savetxt("optimization_times_sum.csv", np.array(solve_optimization_times),delimiter=',')
+    np.savetxt("go_to_point_times.csv", np.array(travel_to_point_times),delimiter=',')

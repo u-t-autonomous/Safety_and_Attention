@@ -551,19 +551,20 @@ if __name__ == '__main__':
 
     # Set the initial point of the robotic agent in the Gazebo world (make sure this
     # is the same as the initial position in the Safety and Attention environment)
-    init_point_1 = Point(-7.65, -5.2, None)
+    init_point_1 = Point(-3.8, -2.2, None)
     vel_controller_1.go_to_point(init_point_1)
 
     # Dynamics of first obstacle
     sampling_time = 0.05
     obs_1_A_matrix = np.eye(2)
     obs_1_F_matrix = sampling_time*np.eye(2)
-    obs_1_mean_vec = np.array([7.5, 7.4])
+    obs_1_mean_vec = np.array([3.25, 4.25])
     obs_1_cov_mat = np.array([[2, 0.25], [0.25, 2]])
 
     # Generate a set of waypoints for the first obstacle to follow
     num_steps = 200
     traj = []
+    traj_np = []
     for step in range(0,num_steps):
         if step == 0:
             # Query the previous point in the set of waypoints
@@ -576,6 +577,7 @@ if __name__ == '__main__':
             new_state = np.matmul(obs_1_A_matrix,prev_state) + np.matmul(obs_1_F_matrix,obs_w_step)
             new_point = Point(float(new_state[0]),float(new_state[1]), None)
             traj = [new_point]
+            traj_np = [np.array(new_state)]
         else:
             # Query the previous point in the set of waypoints
             prev_x = traj[step-1].x
@@ -587,7 +589,9 @@ if __name__ == '__main__':
             new_state = np.matmul(obs_1_A_matrix, prev_state) + np.matmul(obs_1_F_matrix, obs_w_step)
             new_point = Point(float(new_state[0]), float(new_state[1]), None)
             traj.append(new_point)
+            traj_np.append(np.array(new_state))
 
+    np.save("obstacle_1_trajectory",np.array(traj_np))
     # Wait until all other robots are ready
     rdy = ReadyTool(robot_name)
     print("*** Robot {} is ready and waiting to start ***".format(int(robot_name[-1])))
