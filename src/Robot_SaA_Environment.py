@@ -34,7 +34,7 @@ class RobotSaAEnvironment:
 
     def __init__(self, target_state, target_tolerance, gauss_lev_param, planning_horizon,
                  rob_init_pos, rob_A_mat, rob_B_mat, obs_field_of_view_rad, obs_interval,
-                 rob_state_max, rob_input_max, sampling_time, observation_strategy):
+                 rob_state_x_max, rob_state_y_max, rob_input_max, sampling_time, observation_strategy):
         """
         input: target_state: the state that the robot seeks to reach
         input: target_tolerance: the tolerance for which we say the robot has "reached"
@@ -49,7 +49,9 @@ class RobotSaAEnvironment:
             make an observation about an obstacle within this area
         input: obs_interval: after each interval, the robot can make an observation about
             an obstacle within its field-of-view radius
-        input: rob_state_max: absolute value of maximum distance in any direction the robot
+        input: rob_state_x_max: absolute value of maximum distance in the x direction the robot
+            can be from the origin
+        input: rob_state_y_max: absolute value of maximum distance in the y direction the robot
             can be from the origin
         input: rob_input_max: absolute value of robot control input. NOT A PHYSICAL QUANTITY AT THIS MOMENT!
         input: sampling_time: The time between subsequent planning steps (k) and (k+1)
@@ -65,14 +67,15 @@ class RobotSaAEnvironment:
         self.rob_B_mat = self.sampling_time*rob_B_mat
         self.obs_field_of_view_rad = obs_field_of_view_rad
         self.obs_interval = obs_interval
-        self.rob_state_max = rob_state_max
+        self.rob_state_x_max = rob_state_x_max
+        self.rob_state_y_max = rob_state_y_max
         self.rob_input_max = rob_input_max
         self.obs_strat = observation_strategy
 
         # Plot the initial map
-        safe_set_polygon = Polygon(np.array([[-self.rob_state_max, -self.rob_state_max],
-            [self.rob_state_max, -self.rob_state_max],[self.rob_state_max, self.rob_state_max],
-            [-self.rob_state_max, self.rob_state_max]]), alpha=1, edgecolor='k', fill=False, zorder=0)
+        safe_set_polygon = Polygon(np.array([[-self.rob_state_x_max, -self.rob_state_y_max],
+            [self.rob_state_x_max, -self.rob_state_y_max],[self.rob_state_x_max, self.rob_state_y_max],
+            [-self.rob_state_x_max, self.rob_state_y_max]]), alpha=1, edgecolor='k', fill=False, zorder=0)
         self.fig, self.ax = self.plot_initial_map(safe_set_polygon)
         plt.draw()
         plt.pause(0.001)
@@ -125,9 +128,10 @@ class RobotSaAEnvironment:
         #           label='Target state')
         ax.scatter(self.target_state[0], self.target_state[1], 100, marker='*', color='y')
 
-        sta_lim_tup = [-self.rob_state_max, self.rob_state_max]
-        ax.set_xlim(sta_lim_tup)
-        ax.set_ylim(sta_lim_tup)
+        sta_lim_tup_x = [-self.rob_state_x_max, self.rob_state_x_max]
+        sta_lim_tup_y = [-self.rob_state_y_max, self.rob_state_y_max]
+        ax.set_xlim(sta_lim_tup_x)
+        ax.set_ylim(sta_lim_tup_y)
         ax.set_aspect('equal')
         ax.axis('off')
         #ax.set_xlabel('x')
@@ -323,7 +327,8 @@ class RobotSaAEnvironment:
             set_up_independent_ecos_params(self.num_obs, self.planning_horizon,
                                            self.rob_state_dim, self.rob_input_dim,
                                            self.H, self.target_state,
-                                           self.rob_state_max, self.rob_input_max)
+                                           self.rob_state_x_max, self.rob_state_y_max,
+                                           self.rob_input_max)
 
         # Propagate the linear obstacles over the planning horizon
 
@@ -384,7 +389,8 @@ class RobotSaAEnvironment:
         # path for the robot to follow.
         robot_RHC_trajectory_initial_solution, robot_input_initial_solution = \
             solve_obs_free_ecos(self.Z, self.H, self.rob_pos, self.rob_state_dim, self.rob_input_dim,
-                                target_tile_ecos, self.planning_horizon, self.rob_state_max, self.rob_input_max)
+                                target_tile_ecos, self.planning_horizon, self.rob_state_x_max,
+                                self.rob_state_y_max, self.rob_input_max)
         robot_initial_trajectory_state_x_time = np.reshape(
             robot_RHC_trajectory_initial_solution, (self.planning_horizon, self.rob_state_dim)).T
 
@@ -421,7 +427,8 @@ class RobotSaAEnvironment:
                     obs_mu_bar_stack_all, obs_Qplus_stack_all, mult_matrix_stack, A_ecos,
                     G_linear_partial_stack_ecos, G_quadratic_ecos, h_linear_partial_stack_ecos,
                     h_quadratic_ecos, target_tile_ecos, obs_mu_bars_time_hor, obs_Qplus_mat_time_hor,
-                    self.rob_state_max, self.rob_input_max, self.H, tau_max=np.array([10000]),
+                    self.rob_state_x_max, self.rob_state_y_max, self.rob_input_max,
+                    self.H, tau_max=np.array([10000]),
                     mu=20, delta=1e-3, tau=1)
 
             # Check to see if the updated trajectory found through DC program

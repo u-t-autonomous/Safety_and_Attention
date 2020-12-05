@@ -33,7 +33,7 @@ def dc_motion_planning_call_ecos(n_obstacles,time_horizon, robot_state_dimension
                                 A, G_linear_partial_stack, G_quadratic,
                                 h_linear_partial_stack, h_quadratic,
                                 target_tile, obs_mu_bars_time_hor, obs_Qplus_mat_time_hor,
-                                robot_state_max,robot_input_max,H,
+                                robot_state_x_max, robot_state_y_max, robot_input_max,H,
                                 tau_max,mu,delta,tau):
 
     # For ease of notation
@@ -175,7 +175,8 @@ def dc_motion_planning_call_ecos(n_obstacles,time_horizon, robot_state_dimension
     # Now that we have our updated projection constraints, solve the new optimization problem
     traj_new, input, dual_vars = solve_proj_opt_prob(A, b, robot_state_dimension,
                                                      robot_input_dimension, time_horizon, target_tile,
-                                                     n, p_mat, q_vec, robot_state_max, robot_input_max, H, Z,
+                                                     n, p_mat, q_vec, robot_state_x_max, robot_state_y_max,
+                                                     robot_input_max, H, Z,
                                                      current_state)
 
     obs_dual_vals = dual_vars_dc
@@ -211,7 +212,7 @@ def stack_params_for_ecos(n_obstacles, time_horizon, obs_mu_bars_time_hor,obs_Qp
 
 def set_up_independent_ecos_params(n_obstacles, time_horizon, robot_state_dimension,
                                   robot_input_dimension, H, target_state,
-                                  state_max, input_max):
+                                  state_x_max, state_y_max, input_max):
     """
     :param n_obstacles:
     :param time_horizon:
@@ -221,7 +222,8 @@ def set_up_independent_ecos_params(n_obstacles, time_horizon, robot_state_dimens
     :param H:
     :param current_state:
     :param target_state:
-    :param state_max:
+    :param state_x_max:
+    :param state_y_max:
     :param input_max:
     :return:
     """
@@ -253,8 +255,8 @@ def set_up_independent_ecos_params(n_obstacles, time_horizon, robot_state_dimens
 
     # Right-hand side of linear cone constraints
     h_linear_1 = np.zeros((n * h, 1))
-    h_linear_2 = np.tile(state_max, (r * h, 1))
-    h_linear_3 = np.tile(state_max, (r * h, 1))
+    h_linear_2 = np.tile(np.array([[state_x_max, state_y_max]]).T, (h, 1))
+    h_linear_3 = np.tile(np.array([[state_x_max, state_y_max]]).T, (h, 1))
     h_linear_4 = np.tile(input_max, (i * h, 1))
     h_linear_5 = np.tile(input_max, (i * h, 1))
     h_linear_partial_stack = np.concatenate((h_linear_1,
@@ -302,7 +304,8 @@ def solve_proj_problem_and_get_hyperplane(Q,mu_bar,query_point):
     return hyperplane_p, hyperplane_q
 
 def solve_proj_opt_prob(A,b,rob_sta_dim,rob_in_dim,time_hor,target_tile,
-                        num_obstacles,p_mat,q_vec,state_max,input_max,H_mat,Z_mat,cur_state):
+                        num_obstacles,p_mat,q_vec,state_x_max,state_y_max,
+                        input_max,H_mat,Z_mat,cur_state):
 
     r = rob_sta_dim
     i = rob_in_dim
@@ -317,11 +320,11 @@ def solve_proj_opt_prob(A,b,rob_sta_dim,rob_in_dim,time_hor,target_tile,
 
     # State must be less than maximum
     G_linear_1 = hstack([identity(r*h), csr((r*h,i*h)), csr((r*h,1))])
-    h_linear_1 = np.tile(state_max, (r*h,1))
+    h_linear_1 = np.tile(np.array([[state_x_max, state_y_max]]).T, (h,1))
 
     # State must be greater than minimum
     G_linear_2 = hstack([-identity(r*h), csr((r*h,i*h)), csr((r*h,1))])
-    h_linear_2 = np.tile(state_max, (r*h,1))
+    h_linear_2 = np.tile(np.array([[state_x_max, state_y_max]]).T, (h,1))
 
     # Input must be less than maximum
     G_linear_3 = hstack([csr((i*h,r*h)), identity(i*h), csr((i*h,1))])
@@ -373,7 +376,7 @@ def solve_proj_opt_prob(A,b,rob_sta_dim,rob_in_dim,time_hor,target_tile,
 
 def solve_obs_free_ecos(Z_mat,H_mat,current_state,rob_sta_dim,
                             rob_in_dim,target_tile,time_hor,
-                            state_max, input_max):
+                            state_x_max, state_y_max, input_max):
 
     # Minimize ||x-x_goal||
     # subject to
@@ -399,11 +402,11 @@ def solve_obs_free_ecos(Z_mat,H_mat,current_state,rob_sta_dim,
 
     # State must be less than maximum
     G_linear_1 = hstack([identity(r * h), csr((r * h, i * h)), csr((r * h, 1))])
-    h_linear_1 = np.tile(state_max, (r * h, 1))
+    h_linear_1 = np.tile(np.array([[state_x_max, state_y_max]]).T, (h, 1))
 
     # State must be greater than minimum
     G_linear_2 = hstack([-identity(r * h), csr((r * h, i * h)), csr((r * h, 1))])
-    h_linear_2 = np.tile(state_max, (r * h, 1))
+    h_linear_2 = np.tile(np.array([[state_x_max, state_y_max]]).T, (h, 1))
 
     # Input must be less than maximum
     G_linear_3 = hstack([csr((i * h, r * h)), identity(i * h), csr((i * h, 1))])

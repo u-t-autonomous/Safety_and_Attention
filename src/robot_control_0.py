@@ -592,7 +592,8 @@ if __name__ == '__main__':
 
     # Assuming a square, the absolute value in the L1 sense that the position of
     # the robotic agent can be in any of the cardinal directions
-    rob_state_max = 5
+    rob_state_x_max = 5
+    rob_state_y_max = 6
 
     # This parameter is for how large of "steps" the difference in waypoints can be,
     # not really a physical parameter and we will likely need to adjust this
@@ -606,9 +607,8 @@ if __name__ == '__main__':
     # attention environment
     robotic_agent_environ = RobotSaAEnvironment(goal_state, goal_tolerance, beta,
                                                 planning_horizon, rob_init_pos, rob_A_mat, rob_B_mat,
-                                                obs_field_of_view_rad,
-                                                obs_interval, rob_state_max, rob_input_max, sampling_time,
-                                                rob_obs_strat)
+                                                obs_field_of_view_rad, obs_interval, rob_state_x_max,
+                                                rob_state_y_max, rob_input_max, sampling_time, rob_obs_strat)
 
     # Add the first obstacle
     obs_1_init = np.array([-3.8, -2.2])

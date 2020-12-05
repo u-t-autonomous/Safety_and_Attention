@@ -33,8 +33,8 @@ class Commander:
 
 if __name__ == "__main__":
     rospy.init_node('robot_command', anonymous=True)
-    cmd = Commander(3)
-    # cmd = Commander(4)
+    #cmd = Commander(3)
+    cmd = Commander(4)
     flag = False # So we can print info the FIRST time the loop waits for the vehicles
     # cmd.set_ready(False)
     while not rospy.is_shutdown():
