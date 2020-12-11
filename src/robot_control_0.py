@@ -556,7 +556,7 @@ if __name__ == '__main__':
 
     # Set the initial point of the robotic agent in the Gazebo world (make sure this
     # is the same as the initial position in the Safety and Attention environment
-    init_point_0 = Point(-4.5, -4.5, None)
+    init_point_0 = Point(-1.5, -1.5, None)
     vel_controller_0.go_to_point(init_point_0)
 
     # Observation strategy of the robot. Either "bin" or "sum" (sum is preferred choice)
@@ -568,7 +568,7 @@ if __name__ == '__main__':
 
     # Define the state that the robotic agent must travel to and the L2-norm
     # tolerance for which we can say that the agent "reached" that state
-    goal_state = np.array([4, 4])
+    goal_state = np.array([1.6, 2.0])
     goal_tolerance = 5e-2
 
     # Parameter for constructing Gaussian level sets of obstacle positions
@@ -576,10 +576,10 @@ if __name__ == '__main__':
     beta = 0.01
 
     # Number of time steps into the future that the robotic agent must plan
-    planning_horizon = 30
+    planning_horizon = 20
 
     # Initial position of the robotic agent in the environment
-    rob_init_pos = np.array([-4.5, -4.5])
+    rob_init_pos = np.array([-1.5, -1.5])
 
     # The size of the circle (assumed to be in meters?) for which the robotic
     # agent can make an observation about an obstacle if the obstacle is within
@@ -592,16 +592,16 @@ if __name__ == '__main__':
 
     # Assuming a square, the absolute value in the L1 sense that the position of
     # the robotic agent can be in any of the cardinal directions
-    rob_state_x_max = 5
-    rob_state_y_max = 6
+    rob_state_x_max = 1.75
+    rob_state_y_max = 2.125
 
     # This parameter is for how large of "steps" the difference in waypoints can be,
     # not really a physical parameter and we will likely need to adjust this
-    rob_input_max = 5
+    rob_input_max = 2.5
 
     # Time between subsequent time steps "k" and "k+1" (again, not really a physical
     # parameter, will probably need to play around with this value)
-    sampling_time = 0.05
+    sampling_time = 0.04
 
     # Now that we have all of the ingredients, create the robot safety and
     # attention environment
@@ -611,32 +611,32 @@ if __name__ == '__main__':
                                                 rob_state_y_max, rob_input_max, sampling_time, rob_obs_strat)
 
     # Add the first obstacle
-    obs_1_init = np.array([-3.8, -2.2])
+    obs_1_init = np.array([-1.4, -0.3])
     obs_1_A_matrix = np.eye(2)
     obs_1_F_matrix = np.eye(2)
-    obs_1_mean_vec = np.array([3.25, 4.25])
-    obs_1_cov_mat = np.array([[2, 0.25], [0.25, 2]])
-    obs_1_radius = 0.4
+    obs_1_mean_vec = np.array([0.8, 1.2])
+    obs_1_cov_mat = np.array([[0.25, 0.1], [0.1, 0.25]])
+    obs_1_radius = 0.25
     robotic_agent_environ.add_linear_obstacle(obs_1_init, obs_1_A_matrix,
                                               obs_1_F_matrix, obs_1_mean_vec, obs_1_cov_mat, obs_1_radius)
 
     # Add the second obstacle
-    obs_2_init = np.array([3.7, 3.0])
+    obs_2_init = np.array([1.3, 1.])
     obs_2_A_matrix = np.eye(2)
     obs_2_F_matrix = np.eye(2)
-    obs_2_mean_vec = np.array([-3.75, -3.25])
-    obs_2_cov_mat = np.array([[4.0, 1.5], [1.5, 4.0]])
-    obs_2_radius = 0.4
+    obs_2_mean_vec = np.array([-0.5, -0.5])
+    obs_2_cov_mat = np.array([[0.6, 0.3], [0.3, 0.6]])
+    obs_2_radius = 0.25
     robotic_agent_environ.add_linear_obstacle(obs_2_init, obs_2_A_matrix,
                                               obs_2_F_matrix, obs_2_mean_vec, obs_2_cov_mat, obs_2_radius)
 
     # Add the third obstacle
-    obs_3_init = np.array([-2.8, -3.3])
+    obs_3_init = np.array([-0.3, -1.2])
     obs_3_A_matrix = np.eye(2)
     obs_3_F_matrix = np.eye(2)
-    obs_3_mean_vec = np.array([4.25, 3.25])
-    obs_3_cov_mat = np.array([[3.0, 0.75], [0.75, 3.0]])
-    obs_3_radius = 0.4
+    obs_3_mean_vec = np.array([1., 1.2])
+    obs_3_cov_mat = np.array([[0.5, 0.2], [0.2, 0.5]])
+    obs_3_radius = 0.25
     robotic_agent_environ.add_linear_obstacle(obs_3_init, obs_3_A_matrix,
                                               obs_3_F_matrix, obs_3_mean_vec, obs_3_cov_mat, obs_3_radius)
 
