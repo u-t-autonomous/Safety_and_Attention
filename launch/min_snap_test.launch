@@ -1,3 +1,0 @@
-<launch>
-  <node pkg="min_snap_ros" name="min_snap" type="min_snap_ros_node" output="screen"/>
-</launch>
