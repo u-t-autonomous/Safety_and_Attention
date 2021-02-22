@@ -32,7 +32,6 @@ class VelocityController:
     def __init__(self, odom_topic_name, cmd_vel_topic_name, debug=False):
         self.debug = debug
         self.__odom_sub = rospy.Subscriber(odom_topic_name, Odometry, self.__odomCB)
-        # self.__vicon_sub = rospy.Subscriber(vicon_topic_name, TransformStamped, self.__viconCB)
         self.cmd_vel_pub = rospy.Publisher(cmd_vel_topic_name, Twist, queue_size = 1)
 
         self.x = None
@@ -47,15 +46,11 @@ class VelocityController:
         rot_q = msg.pose.pose.orientation
         _, _, self.yaw = euler_from_quaternion([rot_q.x, rot_q.y, rot_q.z, rot_q.w])
 
-    # def __viconCB(self, msg):
-    # 	self.x = msg.transform.translation.x
-    # 	self.y = msg.transform.translation.y
-    # 	rot_q = msg.transform.rotation
-    #     _, _, self.yaw = euler_from_quaternion([rot_q.x, rot_q.y, rot_q.z, rot_q.w])
+    def go_to_point(self, data):
 
-    def go_to_point(self, goal):
-
-        # input variable goal should be of type geometry_msgs/Point
+        # input variable goal should be of type [geometry_msgs/Point,yaw]
+        goal = data[0]
+        final_yaw = data[1]
 
         print("Starting to head towards the waypoint")
 
@@ -103,7 +98,6 @@ class VelocityController:
             print("Stopping the turn")
 
         ''' Then use a PID that controls the cmd velocity and drives the distance error to zero '''
-
         error_x = goal.x - self.x
         error_y = goal.y - self.y
         distance_error = np.sqrt(error_x**2 + error_y**2)
@@ -164,6 +158,51 @@ class VelocityController:
         self.cmd_vel_pub.publish(Twist())
         if self.debug:
             print("Stopping PID")
+
+        # Then finally rotate to the desired final yaw
+        angle_error = self.yaw - final_yaw
+
+        if self.debug:
+            print("Starting to rotate towards goal orientation")
+
+        while abs(angle_error) > 0.05:
+            ''' Only useful if there is some slip/slide of the turtlebot while rotating '''
+            # error_x = goal.x - self.x
+            # error_y = goal.y - self.y
+            # angle_to_goal = np.arctan2(error_y, error_x) # # #
+            angle_error = self.yaw - final_yaw
+            if self.debug:
+                print("Angle to goal: {:.5f},   Yaw: {:.5f},   Angle error: {:.5f}".format(final_yaw, self.yaw, angle_error))
+            if final_yaw >= 0:
+                if self.yaw <= final_yaw and self.yaw >= final_yaw - np.pi:
+                    self.vel_cmd.linear.x = 0.0
+                    self.vel_cmd.angular.z = np.minimum(abs(angle_error), 0.4)
+                else:
+                    self.vel_cmd.linear.x = 0.0
+                    self.vel_cmd.angular.z = -np.minimum(abs(angle_error), 0.4)
+            else:
+                if self.yaw <= final_yaw + np.pi and self.yaw > final_yaw:
+                    self.vel_cmd.linear.x = 0.0
+                    self.vel_cmd.angular.z = -np.minimum(abs(angle_error), 0.4)
+                else:
+                    self.vel_cmd.linear.x = 0.0
+                    self.vel_cmd.angular.z = np.minimum(abs(angle_error), 0.4)
+            # Publish and set loop rate
+            self.cmd_vel_pub.publish(self.vel_cmd)
+            self.r.sleep()
+            # Calculate angle error again before loop condition is checked
+            angle_error = self.yaw - final_yaw
+
+        # Stop rotation
+        self.cmd_vel_pub.publish(Twist())
+        rospy.sleep(1)
+        if self.debug:
+            print("Stopping the turn")
+
+        # Stop motion
+        self.cmd_vel_pub.publish(Twist())
+        if self.debug:
+            print("Stopping motion")
             print("Position is currently: ({:.5f},{:.5f})    Yaw is currently: [{:.5f}]".format(self.x, self.y, self.yaw))
 
         print("** Waypoint Reached **")
