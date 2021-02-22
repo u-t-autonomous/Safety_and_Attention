@@ -211,12 +211,6 @@ class VelocityController:
 class ReadyTool:
     """Tool to help control the executions of multiple nodes from a master node"""
     def __init__(self, robot_name='tb3_0', ready_topic_name='/ready_start_cmd'):
-        # self.ready = False
-        # self.__ready_wait_sub = rospy.Subscriber(ready_topic_name, Bool, self.__readyCB )
-        ''' **** PUT A PUBLISHER HERE **** '''
-        # self.__pub = rospy.Publisher('/ready_start_cmd', Bool, queue_size=1)
-
-
         # Set up flags for sim start as well as Set Ready start value
         self.flag_val = False
         self.ready2start = Ready()
@@ -266,9 +260,7 @@ if __name__ == '__main__':
     vel_controller_0 = VelocityController('/tb3_1/odom', '/tb3_1/cmd_vel', debug=True)
     rospy.sleep(1.0)
 
-    # Set the initial point of the robotic agent(make sure this
-    # is the same as the initial position in the Safety and Attention environment
-    init_point_0 = Point(1, 0, None)
+    point_0 = [Point(1, 1, None),np.pi]
 
     rdy = ReadyTool(robot_name)
     print("*** Robot {} is ready and waiting to start ***".format(int(robot_name[-1])))
@@ -276,6 +268,6 @@ if __name__ == '__main__':
     rdy.wait_for_ready()
     print("Robot {} made it past Ready Check *".format(int(robot_name[-1]))) # Comment when done testing
 
-    vel_controller_0.go_to_point(init_point_0)
+    vel_controller_0.go_to_point(point_0)
 
     make_user_wait()
