@@ -257,10 +257,10 @@ if __name__ == '__main__':
     robot_name = 'tb3_1'
 
     # Create velocity controllers
-    vel_controller_0 = VelocityController('/tb3_1/odom', '/tb3_1/cmd_vel', debug=True)
+    vel_controller = VelocityController('/tb3_1/odom', '/tb3_1/cmd_vel', debug=True)
     rospy.sleep(1.0)
 
-    point_0 = [Point(1, 1, None),np.pi]
+    point_0 = [Point(1, 0, None),np.pi]
 
     rdy = ReadyTool(robot_name)
     print("*** Robot {} is ready and waiting to start ***".format(int(robot_name[-1])))
@@ -268,6 +268,6 @@ if __name__ == '__main__':
     rdy.wait_for_ready()
     print("Robot {} made it past Ready Check *".format(int(robot_name[-1]))) # Comment when done testing
 
-    vel_controller_0.go_to_point(point_0)
+    vel_controller.go_to_point(point_0)
 
     make_user_wait()
