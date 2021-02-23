@@ -1,7 +1,6 @@
 import ecos
 import numpy as np
 import time as time
-import cvxpy as cp
 from scipy.linalg import block_diag as block_diag_nonsparse
 from scipy.sparse import bmat
 from scipy.sparse import block_diag
@@ -298,68 +297,6 @@ def set_up_independent_ecos_params(n_obstacles, time_horizon, robot_state_dimens
     return A, G_linear_partial_stack, G_quadratic,\
            h_linear_partial_stack, h_quadratic, target_tile
 
-def get_polytope_face_for_ellipsoid_for_an_exterior_point(
-        obs_center, obs_matrix, query_state):
-
-    """
-    If the query_state is not in the obstacle ellipsoid, then the face is
-    the supporting hyperplane at the projection of a point query_state onto an
-    ellipse. This hyperplane is given by solving the following optimization
-    problem:
-
-    maximize_z (query_state - obs_center)'z - ||sqrt_obs_matrix z||_2
-    s.t.       ||z||_2 <= 1
-
-    where obs_center is the obstacle ellipsoid, sqrt_obs_matrix is the square
-    root of the obs_matrix (computed via Cholesky decomposition). This
-    optimization problem utilizes the fact that the support function of an
-    ellipsoid is obs_center'z + ||sqrt_obs_matrix z||_2, and the discussion
-    in Boyd's textbook Section 8.1.3. The face is given by
-        z*'query_state <= z*'x
-    or equivalently,
-        -z*'x <= -z*'query_state
-    provided the optimization problem above has a positive objective.
-
-    :param obs_center: center of the current ellipse obstacle of interest
-    :param obs_matrix: quadratic form of the current ellipse obstacle of
-        interest. The ellipse is given by
-            {x| (x - obs_center)' @ obs_matrix @ (x - obs_center) <= 1}
-    :param query_state: the exterior point which is to be projected for the
-        separating hyperplane construction
-    :return:
-        p_vector, q_scalar that characterizes the hyperplane p_vector'x <=
-        q_scalar
-    """
-
-    # Get sqrt_obs_matrix for the optimization problem
-    # Computes the square root of a matrix while preserving sparsity
-    try:
-        sqrt_obs_matrix = np.linalg.cholesky(obs_matrix)
-    except np.linalg.LinAlgError:
-        raise RuntimeError('obs_matrix must be positive definite!')
-
-    # Set up and solve optimization problem
-    tic1 = time.clock()
-    z = cp.Variable(query_state.shape[0])
-    objective = cp.Maximize(z.T @ (query_state - obs_center)/np.linalg.norm(query_state-obs_center)
-                            - cp.norm(sqrt_obs_matrix @ z, 2))
-    constraints = [cp.norm(z, 2) <= 1]
-    prob = cp.Problem(objective, constraints)
-    prob.solve(solver='ECOS')
-
-    if prob.status in ['optimal', 'optimal_inaccurate']:
-        if prob.value >= 0:
-            # From optimal solution, obtain the separating hyperplane
-            # FIXME: Will it ever be that z.value is not unit norm?
-            p_vector = - z.value/np.linalg.norm(z.value)
-        else:
-            raise RuntimeError('Did not expect this quantity to be negative!')
-    else:
-        raise RuntimeError('CVXPY could not solve the problem. CVXPY status: '
-            '{:s}'.format(prob.status))
-
-    return p_vector, q_vector
-
 def get_polytope_face_for_ellipsoid_for_an_exterior_point_ecos(
         obs_center, obs_matrix, query_state):
 
@@ -529,16 +466,16 @@ def solve_obs_free_ecos_unicycle(Z_mat, H_mat, current_state, rob_sta_dim,
 
     return traj, input, A_eq, b_eq, obs_func_val
 
-def ecos_unicycle_shared_cons(r,i,h,state_max,max_velocity,target_tile):
+def ecos_unicycle_shared_cons(r,i,h,state_x_max,state_y_max,max_velocity,target_tile):
 
     min_velocity = 0.01
 
     A_linear_1 = np.hstack((np.eye(r * h), np.zeros((r * h, i * h))))
-    b_linear_1 = np.tile(state_max, (r * h, 1))
+    b_linear_1 = np.tile(np.array([[state_x_max, state_y_max]]).T, (h, 1))
 
     # State must be greater than minimum -> assumes that state_min = -state_max (symmetry)
     A_linear_2 = np.hstack((-np.eye(r * h), np.zeros((r * h, i * h))))
-    b_linear_2 = np.tile(state_max, (r * h, 1))
+    b_linear_2 = np.tile(np.array([[state_x_max, state_y_max]]).T, (h, 1))
 
     # Input must be less than maximum -> recall, only have velocity constraint now
     A_linear_3 = np.hstack((np.zeros((i * h, r * h)), np.eye(i * h)))
