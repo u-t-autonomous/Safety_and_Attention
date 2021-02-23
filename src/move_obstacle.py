@@ -14,7 +14,7 @@ from geometry_msgs.msg import Twist, Point, PoseStamped
 # import sensor_msgs.point_cloud2 as pc2
 # from sensor_msgs.msg import LaserScan, PointCloud2
 from tf.transformations import euler_from_quaternion
-# from Safety_and_Attention.msg import Ready
+from Safety_and_Attention.msg import Ready
 # import time
 # Imports for Algorithm side
 # import copy
