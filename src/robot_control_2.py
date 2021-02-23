@@ -551,15 +551,15 @@ if __name__ == '__main__':
 
     # Set the initial point of the robotic agent in the Gazebo world (make sure this
     # is the same as the initial position in the Safety and Attention environment)
-    init_point_2 = Point(1.3, 1., None)
+    init_point_2 = Point(0., 2.5, None)
     vel_controller_2.go_to_point(init_point_2)
 
     # Dynamics of second obstacle
-    sampling_time = 0.04
+    sampling_time = 1.
     obs_2_A_matrix = np.eye(2)
     obs_2_F_matrix = sampling_time*np.eye(2)
-    obs_2_mean_vec = np.array([-0.5, -0.5])
-    obs_2_cov_mat = np.array([[0.6, 0.3], [0.3, 0.6]])
+    obs_2_mean_vec = np.array([0.0, -0.15])
+    obs_2_cov_mat = np.array([[0.005, 0.0015], [0.0015, 0.008]])
 
     # Generate a set of waypoints for the first obstacle to follow
     num_steps = 200

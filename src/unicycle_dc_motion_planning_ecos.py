@@ -50,8 +50,10 @@ def dc_motion_planning_call_ecos_unicycle(n_obstacles,time_horizon, robot_state_
     # Just to get through the initial run...
     prev_obs_func_val = -1.
 
+    tau_max_counter = 0
+
     # Repeat until convergence
-    while True:
+    while True and tau_max_counter <= 2:
 
         tic = time.clock()
 
@@ -146,6 +148,9 @@ def dc_motion_planning_call_ecos_unicycle(n_obstacles,time_horizon, robot_state_
 
         # Update the parameter for tau
         tau = min([tau_max, mu * tau])
+
+        if tau == tau_max:
+            tau_max_counter += 1
 
         # Save the existing optimal value
         prev_obs_func_val = obs_func_val
