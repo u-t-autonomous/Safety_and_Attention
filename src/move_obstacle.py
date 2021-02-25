@@ -266,8 +266,11 @@ if __name__ == '__main__':
     print("*** Robot {} is ready and waiting to start ***".format(int(robot_name[-1])))
     rdy.set_ready(True)
     rdy.wait_for_ready()
-    print("Robot {} made it past Ready Check *".format(int(robot_name[-1]))) # Comment when done testing
-
+    rdy.set_ready(False)
     vel_controller.go_to_point(point_0)
+    rdy.set_ready(True)
+    print("*** Robot {} is ready and waiting to start ***".format(int(robot_name[-1])))
+    rdy.wait_for_ready()
+    print("Robot {} made it past Ready Check *".format(int(robot_name[-1]))) # Comment when done testing
 
     make_user_wait()
