@@ -86,6 +86,7 @@ class RobotSaAEnvironment:
         self.num_turning_rates = num_turning_rates
         self.turning_rates_array = turning_rates_array
         self.heading_angle = rob_heading_ang
+        self.best_gamma_ind = None
 
         # Plot the initial map
         safe_set_polygon = Polygon(np.array([[-self.rob_state_x_max, -self.rob_state_y_max],
@@ -256,7 +257,7 @@ class RobotSaAEnvironment:
 
         # Solve the linear dynamics planning problem of the robotic
         # agent for the current time step
-        self.nominal_trajectory, self.heading_angle_sequence = self.linear_dynamics_planning(pool)
+        self.nominal_trajectory, self.heading_angle_sequence, self.best_gamma_ind = self.linear_dynamics_planning(pool)
 
         return self.nominal_trajectory, self.heading_angle_sequence
 
@@ -277,10 +278,12 @@ class RobotSaAEnvironment:
                 # Make an observation about the obstacle if it is within the field
                 # of view of the camera
                 if j in obs_cam_list:
-                    cur_obs.update_obstacle_position(True,self.rob_pos,self.obs_field_of_view_rad,
+                    query_obs_pos = True
+                    cur_obs.update_obstacle_position(query_obs_pos,self.rob_pos,self.obs_field_of_view_rad,
                                                  cur_obs_physical_state)
                 else:
-                    cur_obs.update_obstacle_position(False, self.rob_pos, self.obs_field_of_view_rad,
+                    query_obs_pos = False
+                    cur_obs.update_obstacle_position(query_obs_pos, self.rob_pos, self.obs_field_of_view_rad,
                                                      cur_obs_physical_state)
                 obs_index += 1
             # Repeat the process for the nonlinear obstacles
@@ -413,12 +416,12 @@ class RobotSaAEnvironment:
             rob_to_obs_ang = atan2(rob_to_obs_vec[1], rob_to_obs_vec[0])
             ang_dif = rob_to_obs_ang - self.heading_angle
 
-            hard_turn_ang = np.pi/8
+            hard_turn_ang = self.rob_max_turn_rate
             # Depending on the quadrant relative to the robot, either turn hard left, hard right, or straight forward.
-            if -np.pi/2 <= ang_dif <= np.pi / 2:
+            if -self.max_heading_view <= ang_dif <= self.max_heading_view:
                 # If the most relevant obstacle is in front of the robot, don't need to make a "hard turn"
                 init_turn_ang = 0
-            elif np.pi / 2 <= ang_dif <= np.pi:
+            elif self.max_heading_view <= ang_dif <= np.pi:
                 # If the most relevant obstacle is to the back left of the robot, make a hard turn to the left
                 init_turn_ang = self.sampling_time*hard_turn_ang
             else:
@@ -502,6 +505,12 @@ class RobotSaAEnvironment:
         # Currently, we only have these two methods.
         else:
             raise RuntimeError('\n\nWARNING!!! PICK A VALID OBSERVATION STRATEGY!\n\n')
+
+        # Filter out case that all dual var metrics are zero
+        if np.max(self.dual_var_metric) <= 1e-5:
+            self.most_rel_obs_ind = None
+        else:
+            self.most_rel_obs_ind = int(np.argmax(self.dual_var_metric))
 
         # Update the plot ellipsoids
         obs_ellipse = []
@@ -594,7 +603,7 @@ class RobotSaAEnvironment:
             all_obstacle_ell_coll[t_step].remove()
         nominal_trajectory_plot.remove()
 
-        return robot_RHC_trajectory_state_x_time, best_rh_sequence
+        return robot_RHC_trajectory_state_x_time, best_rh_sequence, best_gamma_ind
 
     # def solve_motion_planning_prob(self,gamma,target_tile_ecos,obs_mu_bars_time_hor,
     #              obs_Q_mat_time_hor,obs_rad_vector,mult_matrix_stack,A_ecosqp,b_ecosqp,
@@ -804,22 +813,8 @@ class LinearObstacle:
 
         # Update the robotic agent's understanding of the
         # obstacle's position (the SIMULATION position, uncertainty ellipsoid)
-        if ~query_obs_pos:
 
-            # Update the true underlying state of the current obstacle, as determined by the
-            # ros velocity controller
-            self.act_position = current_physical_state
-
-            # If not making an observation, push current estimated position and
-            # uncertainty through the system dynamics
-            A_mat = self.A_matrix
-            F_mat = self.F_matrix
-            self.sim_position = np.matmul(A_mat,self.sim_position) + np.matmul(F_mat,self.w_mean_vec)
-            self.sig_mat = np.matmul(A_mat,np.matmul(self.sig_mat,np.transpose(A_mat))) \
-                           + np.matmul(F_mat,np.matmul(self.w_cov_mat,np.transpose(F_mat)))
-            self.observed_last_step = False
-
-        else:
+        if query_obs_pos:
 
             # Update the true underlying state of the current obstacle, as determined by the
             # ros velocity controller
@@ -829,6 +824,23 @@ class LinearObstacle:
             self.sim_position = self.act_position
             self.sig_mat = np.zeros(np.shape(self.sig_mat))
             self.observed_last_step = True
+
+        else:
+
+            # Update the true underlying state of the current obstacle, as determined by the
+            # ros velocity controller
+            self.act_position = current_physical_state
+
+            # If not making an observation, push current estimated position and
+            # uncertainty through the system dynamics
+            A_mat = self.A_matrix
+            F_mat = self.F_matrix
+            self.sim_position = np.matmul(A_mat, self.sim_position) + np.matmul(F_mat, self.w_mean_vec)
+            self.sig_mat = np.matmul(A_mat, np.matmul(self.sig_mat, np.transpose(A_mat))) \
+                           + np.matmul(F_mat, np.matmul(self.w_cov_mat, np.transpose(F_mat)))
+            self.observed_last_step = False
+
+
 
 
 # TODO: THIS IS CURRENTLY DEPRECATED. IF WE WANT TO INCLUDE NONLINEAR OBSTACLES, NEED TO

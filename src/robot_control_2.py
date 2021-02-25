@@ -551,45 +551,45 @@ if __name__ == '__main__':
 
     # Set the initial point of the robotic agent in the Gazebo world (make sure this
     # is the same as the initial position in the Safety and Attention environment)
-    init_point_2 = Point(1.2, 2.0, None)
+    init_point_2 = Point(1.2, 1.8, None)
     vel_controller_2.go_to_point(init_point_2)
 
     # Dynamics of second obstacle
     sampling_time = 1.
     obs_2_A_matrix = np.eye(2)
     obs_2_F_matrix = sampling_time*np.eye(2)
-    obs_2_mean_vec = np.array([-0.05, -0.05])
+    obs_2_mean_vec = np.array([-0.125, -0.1])
     obs_2_cov_mat = np.array([[0.004, 0.0015], [0.0015, 0.008]])
 
     # Generate a set of waypoints for the first obstacle to follow
-    # num_steps = 200
-    # traj = []
-    # traj_np = []
-    # for step in range(0, num_steps):
-    #     if step == 0:
-    #         # Query the previous point in the set of waypoints
-    #         prev_x = init_point_2.x
-    #         prev_y = init_point_2.y
-    #         prev_state = np.array([prev_x, prev_y])
-    #         # Push this point through the dynamics
-    #         obs_w_step = np.random.multivariate_normal(obs_2_mean_vec, obs_2_cov_mat, 1)
-    #         obs_w_step = np.reshape(obs_w_step, (2,))
-    #         new_state = np.matmul(obs_2_A_matrix, prev_state) + np.matmul(obs_2_F_matrix, obs_w_step)
-    #         new_point = Point(float(new_state[0]), float(new_state[1]), None)
-    #         traj = [new_point]
-    #         traj_np = [np.array(new_state)]
-    #     else:
-    #         # Query the previous point in the set of waypoints
-    #         prev_x = traj[step - 1].x
-    #         prev_y = traj[step - 1].y
-    #         prev_state = np.array([prev_x, prev_y])
-    #         # Push this point through the dynamics
-    #         obs_w_step = np.random.multivariate_normal(obs_2_mean_vec, obs_2_cov_mat, 1)
-    #         obs_w_step = np.reshape(obs_w_step, (2,))
-    #         new_state = np.matmul(obs_2_A_matrix, prev_state) + np.matmul(obs_2_F_matrix, obs_w_step)
-    #         new_point = Point(float(new_state[0]), float(new_state[1]), None)
-    #         traj.append(new_point)
-    #         traj_np.append(np.array(new_state))
+    num_steps = 200
+    traj = []
+    traj_np = []
+    for step in range(0, num_steps):
+        if step == 0:
+            # Query the previous point in the set of waypoints
+            prev_x = init_point_2.x
+            prev_y = init_point_2.y
+            prev_state = np.array([prev_x, prev_y])
+            # Push this point through the dynamics
+            obs_w_step = np.random.multivariate_normal(obs_2_mean_vec, obs_2_cov_mat, 1)
+            obs_w_step = np.reshape(obs_w_step, (2,))
+            new_state = np.matmul(obs_2_A_matrix, prev_state) + np.matmul(obs_2_F_matrix, obs_w_step)
+            new_point = Point(float(new_state[0]), float(new_state[1]), None)
+            traj = [new_point]
+            traj_np = [np.array(new_state)]
+        else:
+            # Query the previous point in the set of waypoints
+            prev_x = traj[step - 1].x
+            prev_y = traj[step - 1].y
+            prev_state = np.array([prev_x, prev_y])
+            # Push this point through the dynamics
+            obs_w_step = np.random.multivariate_normal(obs_2_mean_vec, obs_2_cov_mat, 1)
+            obs_w_step = np.reshape(obs_w_step, (2,))
+            new_state = np.matmul(obs_2_A_matrix, prev_state) + np.matmul(obs_2_F_matrix, obs_w_step)
+            new_point = Point(float(new_state[0]), float(new_state[1]), None)
+            traj.append(new_point)
+            traj_np.append(np.array(new_state))
     #
     # np.save("obstacle_2_trajectory", np.array(traj_np))
 
@@ -601,15 +601,16 @@ if __name__ == '__main__':
     # print("Robot {} made it past Ready Check *".format(int(robot_name[-1]))) # Comment when done testing
     # sys.exit() # Comment when done testing
 
-    traj = np.load('obs_2_states.npy')
+    # traj = np.load('obs_2_states.npy')
 
     # Now, while we have not reached the target point, continue executing the controller
     while not rospy.is_shutdown():
-        for next_point in traj[1:,:]:
+        for next_p in traj_np:
             rdy.set_ready(False)
-            next_x = next_point[0]
-            next_y = next_point[1]
+            next_x = next_p[0]
+            next_y = next_p[1]
             next_point = Point(next_x, next_y, None)
+            vel_controller_2.go_to_point(next_point)
             rdy.set_ready(True)
             # Wait for the agent and the obstacles to have synchronized to their next state
             rdy.wait_for_ready()

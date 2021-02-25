@@ -85,7 +85,7 @@ class VelocityController:
         if self.debug:
             print("Starting to rotate towards waypoint")
 
-        while abs(angle_error) > 0.05:
+        while abs(angle_error) > 0.01:
             ''' Only useful if there is some slip/slide of the turtlebot while rotating '''
             # error_x = goal.x - self.x
             # error_y = goal.y - self.y
@@ -187,7 +187,7 @@ class VelocityController:
         if self.debug:
             print("Starting to rotate towards goal orientation")
 
-        while abs(angle_error) > 0.05:
+        while abs(angle_error) > 0.01:
             ''' Only useful if there is some slip/slide of the turtlebot while rotating '''
             # error_x = goal.x - self.x
             # error_y = goal.y - self.y
@@ -625,7 +625,7 @@ if __name__ == '__main__':
     # Set the initial point of the robotic agent in the Gazebo world (make sure this
     # is the same as the initial position in the Safety and Attention environment
     rob_heading_ang = 0
-    init_point_0 = [Point(-2.9, -1.0, None), rob_heading_ang]   # the list is [Point(x,y,z),heading angle
+    init_point_0 = [Point(-2.75, -0.25, None), rob_heading_ang]   # the list is [Point(x,y,z),heading angle
                                                                 # (measured counter-clockwise from x-axis)]
     vel_controller_0.go_to_point(init_point_0)
 
@@ -643,10 +643,10 @@ if __name__ == '__main__':
 
     # Maximum change in angle in one time step (again, assume symmetric about
     # the current heading angle)
-    rob_max_turn_rate = np.pi/2.5
+    rob_max_turn_rate = np.pi/3
 
     # One-step "aggressive" turn to view most relevant obstacle
-    rob_agg_turn_rate = np.pi/2.5
+    rob_agg_turn_rate = np.pi/3
 
     # Current most relevant obstacle
     most_rel_obs_ind = None
@@ -668,7 +668,7 @@ if __name__ == '__main__':
     planning_horizon = 15
 
     # Initial position of the robotic agent in the environment
-    rob_init_pos = np.array([-2.9, -1.0])
+    rob_init_pos = np.array([-2.75, -0.25])
 
     # The size of the circle (assumed to be in meters?) for which the robotic
     # agent can make an observation about an obstacle if the obstacle is within
@@ -700,21 +700,21 @@ if __name__ == '__main__':
 
     # Add the first obstacle
     # obs_1_init = np.array([-1.4, -0.3])
-    obs_1_init = np.array([-2., 2.])
+    obs_1_init = np.array([-0.5, 2.0])
     obs_1_A_matrix = np.eye(2)
     obs_1_F_matrix = np.eye(2)
-    obs_1_mean_vec = np.array([0.15, -0.12])
-    obs_1_cov_mat = np.array([[0.005, 0.001], [0.001, 0.005]])
+    obs_1_mean_vec = np.array([-0.025, -0.125])
+    obs_1_cov_mat = np.array([[0.004, 0.001], [0.001, 0.004]])
     obs_1_radius = 0.25
     robotic_agent_environ.add_linear_obstacle(obs_1_init, obs_1_A_matrix,
                                               obs_1_F_matrix, obs_1_mean_vec, obs_1_cov_mat, obs_1_radius)
 
     # Add the second obstacle
     # obs_2_init = np.array([1.3, 1.])
-    obs_2_init = np.array([1.2, 2.0])
+    obs_2_init = np.array([1.2, 1.8])
     obs_2_A_matrix = np.eye(2)
     obs_2_F_matrix = np.eye(2)
-    obs_2_mean_vec = np.array([-0.05, -0.05])
+    obs_2_mean_vec = np.array([-0.125, -0.1])
     obs_2_cov_mat = np.array([[0.004, 0.0015], [0.0015, 0.008]])
     obs_2_radius = 0.25
     robotic_agent_environ.add_linear_obstacle(obs_2_init, obs_2_A_matrix,
@@ -805,6 +805,13 @@ if __name__ == '__main__':
         robotic_agent_environ.update_obs_positions_and_plots(obs_act_positions,obs_in_view_list)
         robotic_agent_environ.rob_pos = np.array([vel_controller_0.x, vel_controller_0.y])
         robotic_agent_environ.heading_angle = vel_controller_0.yaw
+
+        print('----------')
+        print(robotic_agent_environ.most_rel_obs_ind)
+        print(robotic_agent_environ.heading_angle)
+        print(robotic_agent_environ.best_gamma_ind)
+        print(robotic_agent_environ.heading_angle_sequence)
+        print('----------')
 
     np.savetxt("optimization_times_sum.csv", np.array(solve_optimization_times),delimiter=',')
     np.savetxt("go_to_point_times.csv", np.array(travel_to_point_times),delimiter=',')
