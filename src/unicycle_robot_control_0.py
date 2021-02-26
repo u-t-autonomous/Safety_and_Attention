@@ -625,7 +625,7 @@ if __name__ == '__main__':
     # Set the initial point of the robotic agent in the Gazebo world (make sure this
     # is the same as the initial position in the Safety and Attention environment
     rob_heading_ang = 0
-    init_point_0 = [Point(-2.75, -0.25, None), rob_heading_ang]   # the list is [Point(x,y,z),heading angle
+    init_point_0 = [Point(-2.5, -0.75, None), rob_heading_ang]   # the list is [Point(x,y,z),heading angle
                                                                 # (measured counter-clockwise from x-axis)]
     vel_controller_0.go_to_point(init_point_0)
 
@@ -652,7 +652,7 @@ if __name__ == '__main__':
     most_rel_obs_ind = None
 
     # Number of turning rates to consider and the associated array of turning rates
-    num_turning_rates = 45
+    num_turning_rates = 61
     turning_rates_array = np.linspace(-rob_max_turn_rate,rob_max_turn_rate,num_turning_rates)
 
     # Define the state that the robotic agent must travel to and the L2-norm
@@ -665,10 +665,10 @@ if __name__ == '__main__':
     beta = 0.01
 
     # Number of time steps into the future that the robotic agent must plan
-    planning_horizon = 15
+    planning_horizon = 12
 
     # Initial position of the robotic agent in the environment
-    rob_init_pos = np.array([-2.75, -0.25])
+    rob_init_pos = np.array([-2.5, -0.75])
 
     # The size of the circle (assumed to be in meters?) for which the robotic
     # agent can make an observation about an obstacle if the obstacle is within
@@ -700,11 +700,11 @@ if __name__ == '__main__':
 
     # Add the first obstacle
     # obs_1_init = np.array([-1.4, -0.3])
-    obs_1_init = np.array([-0.5, 2.0])
+    obs_1_init = np.array([-1.75, 0.25])
     obs_1_A_matrix = np.eye(2)
     obs_1_F_matrix = np.eye(2)
-    obs_1_mean_vec = np.array([-0.025, -0.125])
-    obs_1_cov_mat = np.array([[0.004, 0.001], [0.001, 0.004]])
+    obs_1_mean_vec = np.array([0.20, 0.0])
+    obs_1_cov_mat = np.array([[0.008, 0.001], [0.001, 0.008]])
     obs_1_radius = 0.25
     robotic_agent_environ.add_linear_obstacle(obs_1_init, obs_1_A_matrix,
                                               obs_1_F_matrix, obs_1_mean_vec, obs_1_cov_mat, obs_1_radius)
@@ -714,8 +714,8 @@ if __name__ == '__main__':
     obs_2_init = np.array([1.2, 1.8])
     obs_2_A_matrix = np.eye(2)
     obs_2_F_matrix = np.eye(2)
-    obs_2_mean_vec = np.array([-0.125, -0.1])
-    obs_2_cov_mat = np.array([[0.004, 0.0015], [0.0015, 0.008]])
+    obs_2_mean_vec = np.array([0.025, -0.1])
+    obs_2_cov_mat = np.array([[0.004, 0.0015], [0.0015, 0.005]])
     obs_2_radius = 0.25
     robotic_agent_environ.add_linear_obstacle(obs_2_init, obs_2_A_matrix,
                                               obs_2_F_matrix, obs_2_mean_vec, obs_2_cov_mat, obs_2_radius)

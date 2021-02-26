@@ -558,8 +558,8 @@ if __name__ == '__main__':
     sampling_time = 1.
     obs_2_A_matrix = np.eye(2)
     obs_2_F_matrix = sampling_time*np.eye(2)
-    obs_2_mean_vec = np.array([-0.125, -0.1])
-    obs_2_cov_mat = np.array([[0.004, 0.0015], [0.0015, 0.008]])
+    obs_2_mean_vec = np.array([0.025, -0.1])
+    obs_2_cov_mat = np.array([[0.004, 0.0015], [0.0015, 0.005]])
 
     # Generate a set of waypoints for the first obstacle to follow
     num_steps = 200
@@ -591,7 +591,7 @@ if __name__ == '__main__':
             traj.append(new_point)
             traj_np.append(np.array(new_state))
     #
-    # np.save("obstacle_2_trajectory", np.array(traj_np))
+    np.save("obstacle_2_trajectory", np.array(traj_np))
 
     # Wait until all other robots are ready
     rdy = ReadyTool(robot_name)
