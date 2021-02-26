@@ -267,15 +267,17 @@ if __name__ == '__main__':
 
 
     for i in range(np.shape(obs_traj)[0]):
-        point_0 = [Point(obs_traj[i][0], obs_traj[i][1], None),None]
+        point_0 = [Point(obs_traj[i][0], obs_traj[i][1], None),None] # r_mp
+
+        ##### DO SOME TRANSFORMATION TO THE LOCAL ODOMETRY FRAME ####
+        # r_rp = r_mp - r_mr
+        # point_odom = [point_0[0], point_0[1]] - [init[0], init[1]]
+
         rdy.set_ready(True)
         print("*** Robot {} is ready and waiting to start ***".format(int(robot_name[-1])))
         rdy.wait_for_ready()
         rdy.set_ready(False)
+        # vel_controller.go_to_point(point_odom)
         vel_controller.go_to_point(point_0)
-        # print("*** Robot {} is ready and waiting to start ***".format(int(robot_name[-1])))
-        # rdy.set_ready(True)
-        # rdy.wait_for_ready()
-        # print("Robot {} made it past Ready Check *".format(int(robot_name[-1]))) # Comment when done testing
 
-        make_user_wait()
+        # make_user_wait()

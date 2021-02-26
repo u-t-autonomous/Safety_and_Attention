@@ -3,8 +3,8 @@
 from geometry_msgs.msg import TransformStamped
 
 # import sys
-# import rospy
-import numpy as np
+import rospy
+# import numpy as np
 # import time
 
 
@@ -43,10 +43,10 @@ if __name__ == "__main__":
     rospy.sleep(2)
     # rate = rospy.Rate(0.5)
     while not rospy.is_shutdown():
-        print('TB1 translation is:\n{}'.format(tr.data[1].rotation))
-        print('TB2 translation is:\n{}'.format(tr.data[2].rotation))
-        print('TB3 translation is:\n{}'.format(tr.data[3].rotation))
-        make_user_wait()
+        print('TB1 translation is:\n{}'.format(tr.data[1].translation))
+        # print('TB2 translation is:\n{}'.format(tr.data[2].rotation))
+        # print('TB3 translation is:\n{}'.format(tr.data[3].rotation))
+        # make_user_wait()
         # rate.sleep()
 
 
