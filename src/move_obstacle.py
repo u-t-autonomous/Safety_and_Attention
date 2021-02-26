@@ -269,11 +269,11 @@ if __name__ == '__main__':
         point_0 = [Point(obs_traj[i][0], obs_traj[i][1], None),None] # r_mp
 
         if robot_name == 'tb3_1':
-            wp = [Point(point_0[0].x - -1.75, point_0[0].y - 0.25, None), None]
+            wp = [Point(point_0[0].x + -1.75, point_0[0].y + 0.25, None), None]
         elif robot_name == 'tb3_2':
-            wp = [Point(point_0[0].x - -1.20, point_0[0].y - 1.80, None), None]
+            wp = [Point(point_0[0].x + 1.20, point_0[0].y + 1.80, None), None]
         elif robot_name == 'tb3_3':
-            wp = [Point(point_0[0].x - 2.25, point_0[0].y - -2.0, None), None]
+            wp = [Point(point_0[0].x + 2.25, point_0[0].y + -2.0, None), None]
         else:
             rospy.logerr("ERROR - Transformation to the odemetry frame could not be completed. The value of the robot name is {}".format(robot_name))
             sys.exit()
