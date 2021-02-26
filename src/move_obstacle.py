@@ -252,7 +252,7 @@ def wait_for_time():
 
 
 if __name__ == '__main__':
-    rospy.init_node("robot_control_1_node", anonymous=True)
+    rospy.init_node("object_control_node", anonymous=True)
     wait_for_time()
 
     robot_name = 'tb3_1'
@@ -260,14 +260,25 @@ if __name__ == '__main__':
     vel_controller = VelocityController('/tb3_1/odom', '/tb3_1/cmd_vel', debug=True)
     rospy.sleep(1.0)
 
-    # obs_traj = np.load('obstacle_1_trajectory.npy')
-    obs_traj = np.load('test_traj.npy')
-    # print('x is: {}, y is: {}'.format(obs_traj[0,0], obs_traj[0,1]))
+    obs_traj = np.load('obstacle_{}_trajectory.npy'.format(int(robot_name[-1])))
     rdy = ReadyTool(robot_name)
 
 
     for i in range(np.shape(obs_traj)[0]):
+        print('x is: {}, y is: {}'.format(obs_traj[i,0], obs_traj[i,1]))
         point_0 = [Point(obs_traj[i][0], obs_traj[i][1], None),None] # r_mp
+
+        if robot_name == 'tb3_1':
+            wp = [Point(point_0[0][0] - -1.75, point_0[0][1] - 0.25, None), None]
+        elif robot_name == 'tb3_2':
+            wp = [Point(point_0[0][0] - -1.20, point_0[0][1] - 1.80, None), None]
+        elif robot_name == 'tb3_3':
+            wp = [Point(point_0[0][0] - 2.25, point_0[0][1] - -2.0, None), None]
+        else:
+            rospy.logerr("ERROR - Transformation to the odemetry frame could not be completed. The value of the robot name is {}".format(robot_name))
+            sys.exit()
+
+
 
         ##### DO SOME TRANSFORMATION TO THE LOCAL ODOMETRY FRAME ####
         # r_rp = r_mp - r_mr
@@ -278,6 +289,6 @@ if __name__ == '__main__':
         rdy.wait_for_ready()
         rdy.set_ready(False)
         # vel_controller.go_to_point(point_odom)
-        vel_controller.go_to_point(point_0)
+        vel_controller.go_to_point(wp)
 
-        # make_user_wait()
+        make_user_wait()
