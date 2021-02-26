@@ -159,45 +159,46 @@ class VelocityController:
         if self.debug:
             print("Stopping PID")
 
-        # Then finally rotate to the desired final yaw
-        angle_error = self.yaw - final_yaw
-
-        if self.debug:
-            print("Starting to rotate towards goal orientation")
-
-        while abs(angle_error) > 0.05:
-            ''' Only useful if there is some slip/slide of the turtlebot while rotating '''
-            # error_x = goal.x - self.x
-            # error_y = goal.y - self.y
-            # angle_to_goal = np.arctan2(error_y, error_x) # # #
+        # Then finally rotate to the desired final yaw if final_yaw is not None
+        if final_yaw:
             angle_error = self.yaw - final_yaw
+
             if self.debug:
-                print("Angle to goal: {:.5f},   Yaw: {:.5f},   Angle error: {:.5f}".format(final_yaw, self.yaw, angle_error))
-            if final_yaw >= 0:
-                if self.yaw <= final_yaw and self.yaw >= final_yaw - np.pi:
-                    self.vel_cmd.linear.x = 0.0
-                    self.vel_cmd.angular.z = np.minimum(abs(angle_error), 0.4)
-                else:
-                    self.vel_cmd.linear.x = 0.0
-                    self.vel_cmd.angular.z = -np.minimum(abs(angle_error), 0.4)
-            else:
-                if self.yaw <= final_yaw + np.pi and self.yaw > final_yaw:
-                    self.vel_cmd.linear.x = 0.0
-                    self.vel_cmd.angular.z = -np.minimum(abs(angle_error), 0.4)
-                else:
-                    self.vel_cmd.linear.x = 0.0
-                    self.vel_cmd.angular.z = np.minimum(abs(angle_error), 0.4)
-            # Publish and set loop rate
-            self.cmd_vel_pub.publish(self.vel_cmd)
-            self.r.sleep()
-            # Calculate angle error again before loop condition is checked
-            angle_error = self.yaw - final_yaw
+                print("Starting to rotate towards goal orientation")
 
-        # Stop rotation
-        self.cmd_vel_pub.publish(Twist())
-        rospy.sleep(1)
-        if self.debug:
-            print("Stopping the turn")
+            while abs(angle_error) > 0.05:
+                ''' Only useful if there is some slip/slide of the turtlebot while rotating '''
+                # error_x = goal.x - self.x
+                # error_y = goal.y - self.y
+                # angle_to_goal = np.arctan2(error_y, error_x) # # #
+                angle_error = self.yaw - final_yaw
+                if self.debug:
+                    print("Angle to goal: {:.5f},   Yaw: {:.5f},   Angle error: {:.5f}".format(final_yaw, self.yaw, angle_error))
+                if final_yaw >= 0:
+                    if self.yaw <= final_yaw and self.yaw >= final_yaw - np.pi:
+                        self.vel_cmd.linear.x = 0.0
+                        self.vel_cmd.angular.z = np.minimum(abs(angle_error), 0.4)
+                    else:
+                        self.vel_cmd.linear.x = 0.0
+                        self.vel_cmd.angular.z = -np.minimum(abs(angle_error), 0.4)
+                else:
+                    if self.yaw <= final_yaw + np.pi and self.yaw > final_yaw:
+                        self.vel_cmd.linear.x = 0.0
+                        self.vel_cmd.angular.z = -np.minimum(abs(angle_error), 0.4)
+                    else:
+                        self.vel_cmd.linear.x = 0.0
+                        self.vel_cmd.angular.z = np.minimum(abs(angle_error), 0.4)
+                # Publish and set loop rate
+                self.cmd_vel_pub.publish(self.vel_cmd)
+                self.r.sleep()
+                # Calculate angle error again before loop condition is checked
+                angle_error = self.yaw - final_yaw
+
+            # Stop rotation
+            self.cmd_vel_pub.publish(Twist())
+            rospy.sleep(1)
+            if self.debug:
+                print("Stopping the turn")
 
         # Stop motion
         self.cmd_vel_pub.publish(Twist())
@@ -255,22 +256,26 @@ if __name__ == '__main__':
     wait_for_time()
 
     robot_name = 'tb3_1'
-
     # Create velocity controllers
     vel_controller = VelocityController('/tb3_1/odom', '/tb3_1/cmd_vel', debug=True)
     rospy.sleep(1.0)
 
-    point_0 = [Point(1, 0, None),np.pi]
-
+    # obs_traj = np.load('obstacle_1_trajectory.npy')
+    obs_traj = np.load('test_traj.npy')
+    # print('x is: {}, y is: {}'.format(obs_traj[0,0], obs_traj[0,1]))
     rdy = ReadyTool(robot_name)
-    print("*** Robot {} is ready and waiting to start ***".format(int(robot_name[-1])))
-    rdy.set_ready(True)
-    rdy.wait_for_ready()
-    rdy.set_ready(False)
-    vel_controller.go_to_point(point_0)
-    rdy.set_ready(True)
-    print("*** Robot {} is ready and waiting to start ***".format(int(robot_name[-1])))
-    rdy.wait_for_ready()
-    print("Robot {} made it past Ready Check *".format(int(robot_name[-1]))) # Comment when done testing
 
-    make_user_wait()
+
+    for i in range(np.shape(obs_traj)[0]):
+        point_0 = [Point(obs_traj[i][0], obs_traj[i][1], None),None]
+        rdy.set_ready(True)
+        print("*** Robot {} is ready and waiting to start ***".format(int(robot_name[-1])))
+        rdy.wait_for_ready()
+        rdy.set_ready(False)
+        vel_controller.go_to_point(point_0)
+        # print("*** Robot {} is ready and waiting to start ***".format(int(robot_name[-1])))
+        # rdy.set_ready(True)
+        # rdy.wait_for_ready()
+        # print("Robot {} made it past Ready Check *".format(int(robot_name[-1]))) # Comment when done testing
+
+        make_user_wait()
