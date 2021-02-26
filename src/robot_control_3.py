@@ -591,7 +591,7 @@ if __name__ == '__main__':
             traj.append(new_point)
             traj_np.append(np.array(new_state))
 
-    # np.save("obstacle_3_trajectory", np.array(traj_np))
+    np.save("obstacle_3_trajectory", np.array(traj_np))
 
     # Wait until all other robots are ready
     rdy = ReadyTool(robot_name)
