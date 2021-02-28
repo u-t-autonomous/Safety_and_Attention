@@ -768,7 +768,7 @@ if __name__ == '__main__':
         else:  # Must be that the yaw angle is between -pi and -2*pi -> want between 0 and pi
             next_yaw = next_yaw + 2*np.pi
 
-        next_point = Point(float(next_p[0]), float(next_p[1]), None)
+        next_point = Point(float(next_p[0])- -2.50, float(next_p[1]) - -0.75, None)
         #### MUST ADD THE TRANSFORM !!!!!!   ##### <_____________-----------------------------------------
         next_state = [next_point,next_yaw]
 
@@ -782,12 +782,12 @@ if __name__ == '__main__':
         print("Robot {} is moving to the next waypoint *".format(int(robot_name[-1])))
 
         # Query the current position of each obstacle
-        obs_1_x = vicon_track.data[1].translation.x
-        obs_1_y = vicon_track.data[1].translation.y
+        obs_1_x = vicon_track.data[3].translation.x
+        obs_1_y = vicon_track.data[3].translation.y
         obs_2_x = vicon_track.data[2].translation.x
         obs_2_y = vicon_track.data[2].translation.y
-        obs_3_x = vicon_track.data[3].translation.x
-        obs_3_y = vicon_track.data[3].translation.y
+        obs_3_x = vicon_track.data[1].translation.x
+        obs_3_y = vicon_track.data[1].translation.y
         # obs_1_x = vel_controller_1.x
         # obs_1_y = vel_controller_1.y
         # obs_2_x = vel_controller_2.x
@@ -820,12 +820,12 @@ if __name__ == '__main__':
         # robotic_agent_environ.rob_pos = np.array([vel_controller_0.x, vel_controller_0.y])
         # robotic_agent_environ.heading_angle = vel_controller_0.yaw
 
-        print('----------')
-        print(robotic_agent_environ.most_rel_obs_ind)
-        print(robotic_agent_environ.heading_angle)
-        print(robotic_agent_environ.best_gamma_ind)
-        print(robotic_agent_environ.heading_angle_sequence)
-        print('----------')
+        # print('----------')
+        # print(robotic_agent_environ.most_rel_obs_ind)
+        # print(robotic_agent_environ.heading_angle)
+        # print(robotic_agent_environ.best_gamma_ind)
+        # print(robotic_agent_environ.heading_angle_sequence)
+        # print('----------')
 
     np.savetxt("optimization_times_sum.csv", np.array(solve_optimization_times),delimiter=',')
     np.savetxt("go_to_point_times.csv", np.array(travel_to_point_times),delimiter=',')
