@@ -768,7 +768,7 @@ if __name__ == '__main__':
         else:  # Must be that the yaw angle is between -pi and -2*pi -> want between 0 and pi
             next_yaw = next_yaw + 2*np.pi
 
-        next_point = Point(float(next_p[0]), float(next_p[1]), None)
+        next_point = Point(float(next_p[0])- -2.50, float(next_p[1]) - -0.75, None)
         #### MUST ADD THE TRANSFORM !!!!!!   ##### <_____________-----------------------------------------
         next_state = [next_point,next_yaw]
 
