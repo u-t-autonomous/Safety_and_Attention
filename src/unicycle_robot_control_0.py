@@ -714,7 +714,7 @@ if __name__ == '__main__':
     obs_2_init = np.array([1.2, 1.8])
     obs_2_A_matrix = np.eye(2)
     obs_2_F_matrix = np.eye(2)
-    obs_2_mean_vec = np.array([0.025, -0.1])
+    obs_2_mean_vec = np.array([0.05, -0.1])
     obs_2_cov_mat = np.array([[0.004, 0.0015], [0.0015, 0.005]])
     obs_2_radius = 0.25
     robotic_agent_environ.add_linear_obstacle(obs_2_init, obs_2_A_matrix,
@@ -806,12 +806,14 @@ if __name__ == '__main__':
         robotic_agent_environ.rob_pos = np.array([vel_controller_0.x, vel_controller_0.y])
         robotic_agent_environ.heading_angle = vel_controller_0.yaw
 
-        print('----------')
-        print(robotic_agent_environ.most_rel_obs_ind)
         print(robotic_agent_environ.heading_angle)
-        print(robotic_agent_environ.best_gamma_ind)
-        print(robotic_agent_environ.heading_angle_sequence)
-        print('----------')
+
+        # print('----------')
+        # print(robotic_agent_environ.most_rel_obs_ind)
+        # print(robotic_agent_environ.heading_angle)
+        # print(robotic_agent_environ.best_gamma_ind)
+        # print(robotic_agent_environ.heading_angle_sequence)
+        # print('----------')
 
     np.savetxt("optimization_times_sum.csv", np.array(solve_optimization_times),delimiter=',')
     np.savetxt("go_to_point_times.csv", np.array(travel_to_point_times),delimiter=',')
