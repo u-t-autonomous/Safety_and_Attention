@@ -784,10 +784,10 @@ if __name__ == '__main__':
         # Query the current position of each obstacle
         obs_1_x = vicon_track.data[1].translation.x
         obs_1_y = vicon_track.data[1].translation.y
-        obs_2_x = vicon_track.data[1].translation.x
-        obs_2_y = vicon_track.data[1].translation.y
-        obs_3_x = vicon_track.data[1].translation.x
-        obs_3_y = vicon_track.data[1].translation.y
+        obs_2_x = vicon_track.data[2].translation.x
+        obs_2_y = vicon_track.data[2].translation.y
+        obs_3_x = vicon_track.data[3].translation.x
+        obs_3_y = vicon_track.data[3].translation.y
         # obs_1_x = vel_controller_1.x
         # obs_1_y = vel_controller_1.y
         # obs_2_x = vel_controller_2.x
@@ -813,8 +813,12 @@ if __name__ == '__main__':
 
         # Now, update the simulated and actual positions of the robot, obstacles.
         robotic_agent_environ.update_obs_positions_and_plots(obs_act_positions,obs_in_view_list)
-        robotic_agent_environ.rob_pos = np.array([vel_controller_0.x, vel_controller_0.y])
-        robotic_agent_environ.heading_angle = vel_controller_0.yaw
+        robotic_agent_environ.rob_pos = np.array([vicon_track.data[0].translation.x, vicon_track.data[0].translation.y])
+        rot_q = vicon_track.data[0].rotation
+        _, _, vicon_yaw = euler_from_quaternion([rot_q.x, rot_q.y, rot_q.z, rot_q.w])
+        robotic_agent_environ.heading_angle = vicon_yaw
+        # robotic_agent_environ.rob_pos = np.array([vel_controller_0.x, vel_controller_0.y])
+        # robotic_agent_environ.heading_angle = vel_controller_0.yaw
 
         print('----------')
         print(robotic_agent_environ.most_rel_obs_ind)

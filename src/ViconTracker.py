@@ -12,6 +12,7 @@ class Tracker(object):
     def __init__(self):
         # self.pub = rospy.Publisher('/ready_start_cmd', Bool, queue_size=1)
         self.data = [None, None, None, None]
+        self.yaw = None
 
         sub3 = rospy.Subscriber('/vicon/TB0/TB0', TransformStamped, self.viconCB0)
         sub1 = rospy.Subscriber('/vicon/TB1/TB1', TransformStamped, self.viconCB1)
@@ -48,7 +49,8 @@ if __name__ == "__main__":
     rospy.sleep(2)
     # rate = rospy.Rate(0.5)
     while not rospy.is_shutdown():
-        print('TB4 translation is:\n{}'.format(tr.data[0].translation))
+        # print('TB0 translation is:\n{}'.format(tr.data[0].rotation))
+        # print('TB0 translation is:\n{}'.format(tr.data[0].translation))
         # print('TB1 translation is:\n{}'.format(tr.data[1].translation))
         # print('TB2 translation is:\n{}'.format(tr.data[2].translation))
         # print('TB3 translation is:\n{}'.format(tr.data[3].translation))
