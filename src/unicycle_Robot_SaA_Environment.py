@@ -4,6 +4,7 @@
     Created:        September 2020
 """
 import numpy as np
+import time as time
 from scipy.linalg import block_diag
 import matplotlib.pyplot as plt
 import matplotlib
@@ -87,6 +88,7 @@ class RobotSaAEnvironment:
         self.turning_rates_array = turning_rates_array
         self.heading_angle = rob_heading_ang
         self.best_gamma_ind = None
+        self.solve_times = []
 
         # Plot the initial map
         safe_set_polygon = Polygon(np.array([[-self.rob_state_x_max, -self.rob_state_y_max],
@@ -449,7 +451,12 @@ class RobotSaAEnvironment:
         # rob_motion_plans_each_gamma, rob_input_sequence_each_gamma, rob_obs_func_val_each_gamma, \
         # rob_obs_func_dual_vals_each_gamma, obs_Qplus_mat_time_hor_each_gamma, rh_ang_time_hor_each_gamma = \
         #     pool.map(solve_motion_planning_prob,iterable=arguments)
+        
+        sol_tic = time.time()
         outputs = pool.map(solve_motion_planning_prob, iterable=arguments)
+        sol_toc = time.time()
+
+        self.solve_times.append(sol_toc-sol_tic)
 
         # Extract the results of the parallel processes
         rob_motion_plans_each_gamma = [output[0] for output in outputs]
