@@ -717,7 +717,7 @@ if __name__ == '__main__':
     obs_2_init = np.array([1.2, 1.8])
     obs_2_A_matrix = np.eye(2)
     obs_2_F_matrix = np.eye(2)
-    obs_2_mean_vec = np.array([0.025, -0.1])
+    obs_2_mean_vec = np.array([0.05, -0.1])
     obs_2_cov_mat = np.array([[0.004, 0.0015], [0.0015, 0.005]])
     obs_2_radius = 0.25
     robotic_agent_environ.add_linear_obstacle(obs_2_init, obs_2_A_matrix,
