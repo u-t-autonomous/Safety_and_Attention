@@ -291,4 +291,4 @@ if __name__ == '__main__':
         # vel_controller.go_to_point(point_odom)
         vel_controller.go_to_point(wp)
 
-        make_user_wait()
+        # make_user_wait()
