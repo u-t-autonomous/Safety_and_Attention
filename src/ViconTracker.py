@@ -13,9 +13,13 @@ class Tracker(object):
         # self.pub = rospy.Publisher('/ready_start_cmd', Bool, queue_size=1)
         self.data = [None, None, None, None]
 
+        sub3 = rospy.Subscriber('/vicon/TB0/TB0', TransformStamped, self.viconCB0)
         sub1 = rospy.Subscriber('/vicon/TB1/TB1', TransformStamped, self.viconCB1)
         sub2 = rospy.Subscriber('/vicon/TB2/TB2', TransformStamped, self.viconCB2)
         sub3 = rospy.Subscriber('/vicon/TB3/TB3', TransformStamped, self.viconCB3)
+
+    def viconCB0(self, msg):
+        self.data[0] = msg.transform
 
     def viconCB1(self, msg):
         self.data[1] = msg.transform
@@ -25,6 +29,7 @@ class Tracker(object):
 
     def viconCB3(self, msg):
         self.data[3] = msg.transform
+
 
 def make_user_wait(msg="Enter exit to exit"):
     data = raw_input(msg + "\n")
@@ -43,9 +48,10 @@ if __name__ == "__main__":
     rospy.sleep(2)
     # rate = rospy.Rate(0.5)
     while not rospy.is_shutdown():
-        print('TB1 translation is:\n{}'.format(tr.data[1].translation))
-        print('TB2 translation is:\n{}'.format(tr.data[2].translation))
-        print('TB3 translation is:\n{}'.format(tr.data[3].translation))
+        print('TB4 translation is:\n{}'.format(tr.data[0].translation))
+        # print('TB1 translation is:\n{}'.format(tr.data[1].translation))
+        # print('TB2 translation is:\n{}'.format(tr.data[2].translation))
+        # print('TB3 translation is:\n{}'.format(tr.data[3].translation))
         # make_user_wait()
         # rate.sleep()
 
