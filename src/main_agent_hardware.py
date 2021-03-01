@@ -52,11 +52,12 @@ from multiprocessing import freeze_support
 
 class VelocityController:
     """Simple velocity controller meant to be used with turtlebot3"""
-    def __init__(self, odom_topic_name, cmd_vel_topic_name, debug=False):
+    def __init__(self, odom_topic_name, cmd_vel_topic_name, vt, debug=False):
         self.debug = debug
         self.__odom_sub = rospy.Subscriber(odom_topic_name, Odometry, self.__odomCB)
         self.cmd_vel_pub = rospy.Publisher(cmd_vel_topic_name, Twist, queue_size = 1)
 
+        self.vt = vt
         self.x = None
         self.y = None
         self.yaw = None
@@ -64,8 +65,11 @@ class VelocityController:
         self.vel_cmd = Twist()
 
     def __odomCB(self, msg):
-        self.x = msg.pose.pose.position.x
-        self.y = msg.pose.pose.position.y
+        # self.x = msg.pose.pose.position.x
+        # self.y = msg.pose.pose.position.y
+        # Temporary fix
+        self.x = self.vt.data[0].translation.x - -1.15 - -2.50
+        self.y = self.vt.data[0].translation.y - -0.75
         rot_q = msg.pose.pose.orientation
         _, _, self.yaw = euler_from_quaternion([rot_q.x, rot_q.y, rot_q.z, rot_q.w])
 
@@ -605,11 +609,11 @@ if __name__ == '__main__':
     wait_for_time()
 
     vicon_track = Tracker()
-    vicon_offset_x = 1.15
+    vicon_offset_x = -1.15
 
     # Create velocity controllers
     robot_name='tb3_0'
-    vel_controller_0 = VelocityController('/tb3_0/odom', '/tb3_0/cmd_vel')
+    vel_controller_0 = VelocityController('/tb3_0/odom', '/tb3_0/cmd_vel', vicon_track)
     # vel_controller_1 = VelocityController('/tb3_1/odom', '/tb3_1/cmd_vel')
     # vel_controller_2 = VelocityController('/tb3_2/odom', '/tb3_2/cmd_vel')
     # vel_controller_3 = VelocityController('/tb3_3/odom', '/tb3_3/cmd_vel')
@@ -662,7 +666,7 @@ if __name__ == '__main__':
     # Define the state that the robotic agent must travel to and the L2-norm
     # tolerance for which we can say that the agent "reached" that state
     goal_state = np.array([1.9, 1.9])
-    goal_tolerance = 10e-2
+    goal_tolerance = 20e-2
 
     # Parameter for constructing Gaussian level sets of obstacle positions
     # A lower beta means that the "keep-out region" is larger

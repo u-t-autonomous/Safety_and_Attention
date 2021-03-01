@@ -599,7 +599,7 @@ class RobotSaAEnvironment:
         self.ax.add_collection(ellipse_collection)
 
         plt.draw()
-        save_name = self.obs_strat + "_" + str(self.total_time_steps) + "_" + "fig.pgf"
+        save_name = self.obs_strat + "_" + str(self.total_time_steps) + "_" + "fig.png"
         plt.savefig(save_name)
         plt.pause(0.001)
 
