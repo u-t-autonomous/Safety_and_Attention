@@ -25,6 +25,7 @@ import random
 # from visualization_msgs.msg import Marker
 from std_msgs.msg import ColorRGBA, Bool
 from geometry_msgs.msg import Quaternion, Vector3
+import command_control as cc
 
 
 # To import for running safety and attention simulations
@@ -485,47 +486,6 @@ def make_array(scan, vis, occl, array_shape):
 
     return a
 
-class ReadyTool:
-    """Tool to help control the executions of multiple nodes from a master node"""
-    def __init__(self, robot_name='tb3_1', ready_topic_name='/ready_start_cmd'):
-        # self.ready = False
-        # self.__ready_wait_sub = rospy.Subscriber(ready_topic_name, Bool, self.__readyCB )
-        ''' **** PUT A PUBLISHER HERE **** '''
-        # self.__pub = rospy.Publisher('/ready_start_cmd', Bool, queue_size=1)
-
-
-        # Set up flags for sim start as well as Set Ready start value
-        self.flag_val = False
-        self.ready2start = Ready()
-        self.ready2start.name = robot_name
-        self.ready2start.ready = False
-        self.flag_pub = rospy.Publisher('/tb3_' + str(robot_name[-1]) + '/ready_start', Ready, queue_size=1)
-        rospy.Subscriber('/ready_start_cmd', Bool, self.flagCB)
-
-    def flagCB(self, msg):
-        self.flag_val = msg.data
-
-    def set_ready(self, val):
-        self.ready2start.ready = val
-        # self.flag_vals[self.platform_id] = val
-        t_end = time.time() + 0.1
-        while time.time() < t_end:
-            self.flag_pub.publish(self.ready2start)
-
-    def wait_to_move(self):
-        rospy.sleep(10)
-
-    def wait_for_ready(self):
-        # check = False
-        while not self.flag_val:
-            # if not check:
-            #     print("Waiting to start")
-            #     check = True
-            rospy.sleep(0.01)
-        print("*** robot {} is starting ***".format(int(self.ready2start.name[-1])))
-        # self.flag_val = False
-
-
 def make_user_wait(msg="Enter exit to exit"):
     data = raw_input(msg + "\n")
     if data == 'exit':
@@ -594,7 +554,7 @@ if __name__ == '__main__':
     np.save("obstacle_3_trajectory", np.array(traj_np))
 
     # Wait until all other robots are ready
-    rdy = ReadyTool(robot_name)
+    rdy = cc.ReadyTool(robot_name)
     print("*** Robot {} is ready and waiting to start ***".format(int(robot_name[-1])))
     rdy.set_ready(True)
     rdy.wait_for_ready()
