@@ -31,9 +31,10 @@ class Commander:
 
 class ReadyTool:
     """Tool to help control the executions of multiple nodes from a master node"""
-    def __init__(self, robot_name='tb3_0', ready_topic_name='/ready_start_cmd'):
+    def __init__(self, robot_name='tb3_0', set_ready_delay=0.25, ready_topic_name='/ready_start_cmd'):
         # Set up flags for sim start as well as Set Ready start value
         self.flag_val = False
+        self.srd = set_ready_delay
         self.ready2start = Ready()
         self.ready2start.name = robot_name
         self.ready2start.ready = False
@@ -46,7 +47,7 @@ class ReadyTool:
     def set_ready(self, val):
         self.ready2start.ready = val
         # self.flag_vals[self.platform_id] = val
-        t_end = time.time() + 0.25
+        t_end = time.time() + srd
         while time.time() < t_end:
             self.flag_pub.publish(self.ready2start)
 
