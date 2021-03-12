@@ -47,7 +47,7 @@ class ReadyTool:
     def set_ready(self, val):
         self.ready2start.ready = val
         # self.flag_vals[self.platform_id] = val
-        t_end = time.time() + srd
+        t_end = time.time() + self.srd
         while time.time() < t_end:
             self.flag_pub.publish(self.ready2start)
 
