@@ -1,5 +1,7 @@
 #! /usr/bin/env/ python2
 
+''' Test file to make sure object detection is working '''
+
 import rospy
 from detect_colors import object_map
 

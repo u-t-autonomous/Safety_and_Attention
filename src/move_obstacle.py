@@ -1,29 +1,15 @@
 #! /usr/bin/env/ python2
 
-# Imports for ROS side
 import rospy
 import numpy as np
 import sys
-# import types
-# import tf2_ros
-# import tf2_geometry_msgs
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Twist, Point, PoseStamped
 from std_msgs.msg import Bool
-# import laser_geometry.laser_geometry as lg
-# import sensor_msgs.point_cloud2 as pc2
-# from sensor_msgs.msg import LaserScan, PointCloud2
 from tf.transformations import euler_from_quaternion
 from Safety_and_Attention.msg import Ready
 import time
-# Imports for Algorithm side
-# import copy
-# import random
-# from partial_semantics import *
-# Rviz
-# from visualization_msgs.msg import Marker
-# from std_msgs.msg import ColorRGBA
-# from geometry_msgs.msg import Quaternion, Vector3, TransformStamped
+import command_control as cc
 
 # ------------------ Start Class Definitions ------------------
 
@@ -208,36 +194,6 @@ class VelocityController:
 
         print("** Waypoint Reached **")
 
-
-class ReadyTool:
-    """Tool to help control the executions of multiple nodes from a master node"""
-    def __init__(self, robot_name='tb3_0', ready_topic_name='/ready_start_cmd'):
-        # Set up flags for sim start as well as Set Ready start value
-        self.flag_val = False
-        self.ready2start = Ready()
-        self.ready2start.name = robot_name
-        self.ready2start.ready = False
-        self.flag_pub = rospy.Publisher('/tb3_' + str(robot_name[-1]) + '/ready_start', Ready, queue_size=1)
-        rospy.Subscriber('/ready_start_cmd', Bool, self.flagCB)
-
-    def flagCB(self, msg):
-        self.flag_val = msg.data
-
-    def set_ready(self, val):
-        self.ready2start.ready = val
-        # self.flag_vals[self.platform_id] = val
-        t_end = time.time() + 0.25
-        while time.time() < t_end:
-            self.flag_pub.publish(self.ready2start)
-
-    def wait_to_move(self):
-        rospy.sleep(10)
-
-    def wait_for_ready(self):
-        while not self.flag_val:
-            rospy.sleep(0.01)
-        print("*** robot {} is starting ***".format(int(self.ready2start.name[-1])))
-
 # ------------------ End Class Definitions --------------------
 
 def make_user_wait(msg="Enter exit to exit"):
@@ -261,7 +217,7 @@ if __name__ == '__main__':
     rospy.sleep(1.0)
 
     obs_traj = np.load('obstacle_{}_trajectory.npy'.format(int(robot_name[-1])))
-    rdy = ReadyTool(robot_name)
+    rdy = cc.ReadyTool(robot_name)
 
 
     for i in range(np.shape(obs_traj)[0]):
@@ -278,17 +234,8 @@ if __name__ == '__main__':
             rospy.logerr("ERROR - Transformation to the odemetry frame could not be completed. The value of the robot name is {}".format(robot_name))
             sys.exit()
 
-
-
-        ##### DO SOME TRANSFORMATION TO THE LOCAL ODOMETRY FRAME ####
-        # r_rp = r_mp - r_mr
-        # point_odom = [point_0[0], point_0[1]] - [init[0], init[1]]
-
         rdy.set_ready(True)
         print("*** Robot {} is ready and waiting to start ***".format(int(robot_name[-1])))
         rdy.wait_for_ready()
         rdy.set_ready(False)
-        # vel_controller.go_to_point(point_odom)
         vel_controller.go_to_point(wp)
-
-        # make_user_wait()
