@@ -7,7 +7,7 @@ import command_control as cc
 if __name__ == "__main__":
     rospy.init_node('robot_command', anonymous=True)
     #cmd = Commander(3)
-    cmd = cc.Commander(4)
+    cmd = cc.Commander(0)
     flag = False # So we can print info the FIRST time the loop waits for the vehicles
     # cmd.set_ready(False)
     while not rospy.is_shutdown():
