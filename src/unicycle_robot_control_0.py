@@ -37,16 +37,14 @@ from unicycle_dc_motion_planning_ecos import \
     (ecos_unicycle_shared_cons, solve_obs_free_ecos_unicycle,
      stack_params_for_ecos, dc_motion_planning_call_ecos_unicycle)
 from unicycle_Robot_SaA_Environment import LinearObstacle, NonlinearObstacle, RobotSaAEnvironment
-from ecosqp_file import ecosqp
+
+# For solving MPC problem
+import casadi as csi
+import osqp
+import ecos
 
 # FOR MAPPING USING THE VICON AND TURTLEBOT CAMERA SYSTEM
 from detect_colors import object_map
-
-# Parallel processing
-from itertools import repeat
-import multiprocessing.dummy as multiprocessing
-from multiprocessing.pool import ThreadPool
-from multiprocessing import freeze_support
 
 # ------------------ Start Class Definitions ------------------
 
@@ -292,7 +290,8 @@ if __name__ == '__main__':
     # Field of view of robot, assumed symmetric about current heading angle
     max_heading_view = 0.541
 
-    # Max velocity input
+    # Min and max velocity input
+    rob_min_velocity = 0.01
     rob_max_velocity = 0.25
 
     # Maximum change in angle in one time step (again, assume symmetric about
@@ -340,7 +339,7 @@ if __name__ == '__main__':
 
     # Time between subsequent time steps "k" and "k+1" (again, not really a physical
     # parameter, will probably need to play around with this value)
-    sampling_time = 1.
+    sampling_time = 0.25
 
     # Now that we have all of the ingredients, create the robot safety and
     # attention environment
@@ -348,9 +347,9 @@ if __name__ == '__main__':
                                                 planning_horizon, rob_init_pos, rob_A_mat,
                                                 obs_field_of_view_rad, obs_interval, rob_state_x_max,
                                                 rob_state_y_max, sampling_time, rob_obs_strat,
-                                                max_heading_view, rob_max_velocity, rob_max_turn_rate,
-                                                rob_agg_turn_rate, most_rel_obs_ind, num_turning_rates,
-                                                turning_rates_array, rob_heading_ang)
+                                                max_heading_view, rob_min_velocity, rob_max_velocity,
+                                                rob_max_turn_rate, rob_agg_turn_rate, most_rel_obs_ind,
+                                                num_turning_rates, turning_rates_array, rob_heading_ang)
 
     # Add the first obstacle
     # obs_1_init = np.array([-1.4, -0.3])
@@ -401,7 +400,7 @@ if __name__ == '__main__':
         # Resolve the problem and extract the next state to transition to, pass
         # this value to the velocity controller
         tic_sop_1 = time.time()
-        robotic_agent_environ.solve_optim_prob_and_update(pool)
+        robotic_agent_environ.solve_optim_prob_and_update()
         solve_optimization_times.append(time.time() - tic_sop_1)
 
         # Assume that the nominal trajectory also has the heading angle stacked underneath,
