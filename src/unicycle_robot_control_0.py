@@ -35,7 +35,7 @@ from linear_dynamics_auxilliary_functions import (ellipsoid_level_function,
     propagate_nonlinear_obstacles)
 from unicycle_dc_motion_planning_ecos import \
     (ecos_unicycle_shared_cons, solve_obs_free_ecos_unicycle,
-     stack_params_for_ecos, dc_motion_planning_call_ecos_unicycle)
+    stack_params_for_ecos, dc_motion_planning_call_ecos_unicycle)
 from unicycle_Robot_SaA_Environment import LinearObstacle, NonlinearObstacle, RobotSaAEnvironment
 
 # For solving MPC problem
