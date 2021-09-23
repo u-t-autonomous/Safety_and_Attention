@@ -26,7 +26,11 @@ from linear_dynamics_auxilliary_functions import \
 from unicycle_dc_motion_planning_ecos import \
     (ecos_unicycle_shared_cons, solve_obs_free_ecos_unicycle,
      stack_params_for_ecos, dc_motion_planning_call_ecos_unicycle)
-from ecosqp_file import ecosqp
+
+# For solving MPC problems
+import casadi as csi
+import ecos
+import osqp
 
 # Mathematic functions
 from math import atan2
@@ -37,7 +41,7 @@ class RobotSaAEnvironment:
     def __init__(self, target_state, target_tolerance, gauss_lev_param, planning_horizon,
                  rob_init_pos, rob_A_mat, obs_field_of_view_rad, obs_interval,
                  rob_state_x_max, rob_state_y_max, sampling_time, observation_strategy,
-                 max_heading_view, rob_max_velocity, rob_max_turn_rate,
+                 max_heading_view, rob_min_velocity, rob_max_velocity, rob_max_turn_rate,
                  rob_agg_turn_rate, most_rel_obs_ind, num_turning_rates,
                  turning_rates_array, rob_heading_ang, discount_factor, discount_weight):
         """
@@ -75,6 +79,7 @@ class RobotSaAEnvironment:
         self.rob_state_y_max = rob_state_y_max
         self.obs_strat = observation_strategy
         self.max_heading_view = max_heading_view
+        self.rob_min_velocity = rob_min_velocity
         self.rob_max_velocity = rob_max_velocity
         self.rob_max_turn_rate = rob_max_turn_rate
         self.rob_agg_turn_rate = rob_agg_turn_rate
@@ -93,7 +98,6 @@ class RobotSaAEnvironment:
 	self.all_constraints_lower_bounds_proj_nl, self.all_constraints_upper_bounds_proj_nl,\
 	self.safely_mpc_init_guess_solver, self.safely_solver_ipopt, self.safely_mpc_projection_solver = \
 		self.construct_mpc_solvers_and_get_bounds()
-	
 	
         # Plot the initial map
         safe_set_polygon = Polygon(np.array([[-self.rob_state_x_max, -self.rob_state_y_max],
@@ -127,6 +131,8 @@ class RobotSaAEnvironment:
         self.nominal_trajectory = np.zeros(
             (self.rob_state_dim, self.planning_horizon))
         self.heading_angle_sequence = np.zeros(self.planning_horizon)
+        self.input_sequence = np.zeros(self.planning_horizon)
+        self.turning_rate_sequence = np.zeros(self.planning_horizon)
 
         # Total number of obstacles, linear and nonlinear
         self.num_obs = 0
@@ -248,7 +254,7 @@ class RobotSaAEnvironment:
 
         return Z, H
 
-    def solve_optim_prob_and_update(self,pool):
+    def solve_optim_prob_and_update(self):
         """
         input: robot_act_pos: the ACTUAL position of the robotic agent in
         return: rob_traj: set of waypoints for the robotic agent to follow
@@ -262,9 +268,9 @@ class RobotSaAEnvironment:
         # Update the number of time steps considered
         self.total_time_steps += 1
 
-        # Solve the linear dynamics planning problem of the robotic
-        # agent for the current time step
-        self.nominal_trajectory, self.heading_angle_sequence, self.best_gamma_ind = self.linear_dynamics_planning(pool)
+        # Take a step of the safely solver (create obstacle ellipsoids, etc.)
+        self.nominal_trajectory, self.heading_angle_sequence, \
+        	self.input_sequence, self.turning_rate_sequence = self.dynamics_planning()
 
         return self.nominal_trajectory, self.heading_angle_sequence
 
@@ -330,7 +336,7 @@ class RobotSaAEnvironment:
 
         return
 
-    def linear_dynamics_planning(self):
+    def dynamics_planning(self):
         """
         Given state of robotic agent's environment, construct a new trajectory
         to follow (i.e. generate a set of waypoints to send to the agent)
@@ -402,7 +408,7 @@ class RobotSaAEnvironment:
         sol_tic = time.time()
         
         # Construct the discount factor array:
-        discount_factors = np.zeros((self.planning_horizon,self.n_obstacles))
+        discount_factors = np.zeros((self.planning_horizon,self.num_obs))
 	if self.most_rel_obs_ind is not None:
 	    discount_factors[:,most_rel_obs_ind] = \
 		np.array([self.discount_weight*self.discount_factor**t_step for t_step in range(planning_horizon)])
@@ -411,7 +417,7 @@ class RobotSaAEnvironment:
         # Note that "sol" is the dictionary output from the casadi function
         robot_RHC_trajectory, robot_input_sequence,robot_heading_angle_sequence, robot_turning_rate_sequence,\
         	obs_func_val,obs_cons_dual_variables,obs_Qplus_mat_time_hor = solve_mpc(self.rob_pos,self.heading_angle,self.target_state,\
-        		self.rob_state_dim,self.rob_input_dim,self.n_obstacles,self.obs_rad_vector,obs_mu_bars_time_hor,\
+        		self.rob_state_dim,self.rob_input_dim,self.num_obs,self.obs_rad_vector,obs_mu_bars_time_hor,\
         		obs_Q_mat_time_hor,self.planning_horizon,\
         		self.all_dv_lower_bounds_nl,
         		self.all_dv_upper_bounds_nl,\
@@ -430,33 +436,9 @@ class RobotSaAEnvironment:
 
         self.solve_times.append(sol_toc-sol_tic)
 
-        # Extract the results of the underlying motion planning problem
-        rob_motion_plan = np.array(sol['x'])[0:2*self.planning_horizon])
-        rob_velocity_inputs = np.array(sol['x'])[2*self.planning_horizon:3*self.planning_horizon]
-        rob_heading_angle = np.array(sol['x'])[3*self.planning_horizon:4*self.planning_horizon]
-        rob_turning_rate = 
-        
-        rob_input_sequence_each_gamma = [output[1] for output in outputs]
-        rob_obs_func_val_each_gamma = [output[2] for output in outputs]
-        rob_obs_func_dual_vals_each_gamma = [output[3] for output in outputs]
-        obs_Qplus_mat_time_hor_each_gamma = [output[4] for output in outputs]
-        rh_ang_time_hor_each_gamma = [output[5] for output in outputs]
-
-        # Check if no feasible trajectory was found
-        if np.isnan(rob_obs_func_val_each_gamma).all():
-            raise RuntimeError("\n Warning: No turning rate permits a feasible trajectory")
-
-        # Determine the best value of the turning rate, gamma, based on the minimum
-        # objective function observed
-        best_gamma_ind = int(np.nanargmin(rob_obs_func_val_each_gamma))
-        robot_RHC_trajectory = rob_motion_plans_each_gamma[best_gamma_ind]
+        # Reshape the output trajectory to a more convenient form
         robot_RHC_trajectory_state_x_time = np.reshape(
             robot_RHC_trajectory, (self.planning_horizon, self.rob_state_dim)).T
-        robot_input_sequence = rob_input_sequence_each_gamma[best_gamma_ind]
-        obs_cons_dual_variables = rob_obs_func_dual_vals_each_gamma[best_gamma_ind]
-        opt_gamma = self.turning_rates_array[best_gamma_ind]
-        obs_Qplus_mat_time_hor = obs_Qplus_mat_time_hor_each_gamma[best_gamma_ind]
-        best_rh_sequence = rh_ang_time_hor_each_gamma[best_gamma_ind]
 
         # Method 1: Use the total number of active dual variables
         if self.obs_strat == "bin":
@@ -586,7 +568,7 @@ class RobotSaAEnvironment:
             all_obstacle_ell_coll[t_step].remove()
         nominal_trajectory_plot.remove()
 
-        return robot_RHC_trajectory_state_x_time, best_rh_sequence, best_gamma_ind
+        return robot_RHC_trajectory_state_x_time, robot_heading_angle_sequence, robot_input_sequence, robot_turning_rate_sequence
         
         
     def construct_mpc_solvers_and_get_bounds(self)
@@ -601,18 +583,18 @@ class RobotSaAEnvironment:
     	# 
 
 	# Declare the variables
-	state_vars = csi.SX.sym('state_x',2*num_t_steps,1)
-	state_th = csi.SX.sym('state_th',num_t_steps,1)
-	state_v = csi.SX.sym('state_v',num_t_steps,1)
-	state_tr = csi.SX.sym('state_tr',num_t_steps,1)
+	state_vars = csi.SX.sym('state_x',2*self.planning_horizon,1)
+	state_th = csi.SX.sym('state_th',self.planning_horizon,1)
+	state_v = csi.SX.sym('state_v',self.planning_horizon,1)
+	state_tr = csi.SX.sym('state_tr',self.planning_horizon,1)
 
 	# Declare what will be used as the parameters
-	obs_pos_mean = csi.SX.sym('obs_pos_mean',2,1,num_t_steps,num_obs)
-	obs_pos_cov = csi.SX.sym('obs_pos_cov',2,2,num_t_steps,num_obs)
+	obs_pos_mean = csi.SX.sym('obs_pos_mean',2,1,self.planning_horizon,self.num_obs)
+	obs_pos_cov = csi.SX.sym('obs_pos_cov',2,2,self.planning_horizon,self.num_obs)
 	x_i = csi.SX.sym('init_state',2,1)
 	th_i = csi.SX.sym('init_heading_angle')
 	x_g = csi.SX.sym('goal_state',2,1)
-	gamma_obs_t = csi.SX.sym('discount_factors',num_t_steps,num_obs)
+	gamma_obs_t = csi.SX.sym('discount_factors',self.planning_horizon,self.num_obs)
 
 	# Initialize the objective function
 	objective_function_nl = 0
@@ -638,13 +620,13 @@ class RobotSaAEnvironment:
 	variable_upper_bounds_tr_nl = []
 
 	# Loop through variables and construct the objective function
-	for t_step in range(num_t_steps): 
+	for t_step in range(self.planning_horizon): 
 
 	    # Update the objective function component for reaching the goal state
 	    objective_function_nl += csi.norm_2(state_vars[2*t_step:2*(t_step+1)] - x_g)
 
 	    # Iterate through the list of obstacles
-	    for obs_ind in range(num_obs):
+	    for obs_ind in range(self.num_obs):
 
 		# Update the objective function component for turning
 		objective_function_nl -= gamma_obs_t[t_step,obs_ind] * \
@@ -684,24 +666,24 @@ class RobotSaAEnvironment:
 	    # Append the lower and upper bounds for each of the variables at the current time step
 	    
 	    # Position components
-	    variable_lower_bounds_state_vars_nl += [x_min,y_min]
-	    variable_upper_bounds_state_vars_nl += [x_max,y_max]
+	    variable_lower_bounds_state_vars_nl += [-self.rob_state_x_max,-self.rob_state_y_max]
+	    variable_upper_bounds_state_vars_nl += [self.rob_state_x_max,self.rob_state_y_max]
 
 	    # heading angle components
 	    variable_lower_bounds_th_nl += [-np.inf]
 	    variable_upper_bounds_th_nl += [np.inf]
 
 	    # velocity components
-	    variable_lower_bounds_v_nl += [v_min]
-	    variable_upper_bounds_v_nl += [v_max]
+	    variable_lower_bounds_v_nl += [self.rob_min_velocity]
+	    variable_upper_bounds_v_nl += [self.rob_max_velocity]
 
 	    # turning rate components
-	    variable_lower_bounds_tr_nl += [-tr_abs_max]
-	    variable_upper_bounds_tr_nl += [tr_abs_max]
+	    variable_lower_bounds_tr_nl += [-1*self.rob_max_turn_rate]
+	    variable_upper_bounds_tr_nl += [self.rob_max_turn_rate]
 
 	# Iterate through the ellipses at each time step, add constraints
-	for obs_ind in range(num_obs):
-	    for t_step in range(num_t_steps):
+	for obs_ind in range(self.num_obs):
+	    for t_step in range(self.planning_horizon):
 
 		# Access the mean position and ellipse shape of the current obstacle:
 		cur_obs_mean_pos = obs_pos_mean[obs_ind][t_step]
@@ -732,13 +714,13 @@ class RobotSaAEnvironment:
 	# Note that casadi uses a sparse-like representation.
 	obs_pos_mean_stacked = []
 	obs_pos_cov_stacked = []
-	for obs_ind in range(num_obs):
+	for obs_ind in range(self.num_obs):
 	    obs_pos_mean_stacked.append(csi.vertcat(*obs_pos_mean[obs_ind]))
 	    obs_pos_cov_stacked.append(csi.vertcat(*obs_pos_cov[obs_ind]))
 	obs_pos_mean_stacked = csi.vertcat(*obs_pos_mean_stacked)
 	obs_pos_cov_stacked = csi.vertcat(*obs_pos_cov_stacked)
-	obs_pos_cov_stacked = csi.reshape(obs_pos_cov_stacked,4*num_t_steps*num_obs,1)
-	gamma_obs_t_stacked = csi.reshape(gamma_obs_t,num_obs*num_t_steps,1)
+	obs_pos_cov_stacked = csi.reshape(obs_pos_cov_stacked,4*self.planning_horizon*self.num_obs,1)
+	gamma_obs_t_stacked = csi.reshape(gamma_obs_t,self.num_obs*self.planning_horizon,1)
 
 	all_parameters_nl = csi.vertcat(obs_pos_mean_stacked,obs_pos_cov_stacked,x_i,th_i,x_g,gamma_obs_t_stacked)
 
@@ -778,20 +760,20 @@ class RobotSaAEnvironment:
 	#
 
 	# Declare the variables
-	state_vars = csi.SX.sym('state_x',2*num_t_steps,1)
-	state_th = csi.SX.sym('state_th',num_t_steps,1)
-	state_v = csi.SX.sym('state_v',num_t_steps,1)
-	state_tr = csi.SX.sym('state_tr',num_t_steps,1)
+	state_vars = csi.SX.sym('state_x',2*self.planning_horizon,1)
+	state_th = csi.SX.sym('state_th',self.planning_horizon,1)
+	state_v = csi.SX.sym('state_v',self.planning_horizon,1)
+	state_tr = csi.SX.sym('state_tr',self.planning_horizon,1)
 
 	# Declare what will be used as the parameters
-	obs_pos_mean = csi.SX.sym('obs_pos_mean',2,1,num_t_steps,num_obs)
-	obs_pos_cov = csi.SX.sym('obs_pos_cov',2,2,num_t_steps,num_obs) 
-	obs_pos_A = csi.SX.sym('obs_pos_A',num_t_steps,2,num_obs)
-	obs_pos_b = csi.SX.sym('obs_pos_b',num_t_steps,num_obs)
+	obs_pos_mean = csi.SX.sym('obs_pos_mean',2,1,self.planning_horizon,self.num_obs)
+	obs_pos_cov = csi.SX.sym('obs_pos_cov',2,2,self.planning_horizon,self.num_obs) 
+	obs_pos_A = csi.SX.sym('obs_pos_A',self.planning_horizon,2,self.num_obs)
+	obs_pos_b = csi.SX.sym('obs_pos_b',self.planning_horizon,self.num_obs)
 	x_i = csi.SX.sym('init_state',2,1)
 	th_i = csi.SX.sym('init_heading_angle')
 	x_g = csi.SX.sym('goal_state',2,1)
-	gamma_obs_t = csi.SX.sym('discount_factors',num_t_steps,num_obs)
+	gamma_obs_t = csi.SX.sym('discount_factors',self.planning_horizon,self.num_obs)
 
 	# Initialize the objective function
 	objective_function_proj_nl = 0
@@ -817,15 +799,13 @@ class RobotSaAEnvironment:
 	variable_upper_bounds_tr_proj_nl = []
 
 	# Loop through variables and construct the objective function, dynamics constraints
-	for t_step in range(num_t_steps): 
+	for t_step in range(self.planning_horizon): 
 
 	    # Update the objective function
-	    # objective_function += (state_vars[2*t_step:2*(t_step+1)] - x_g).T @ \
-	    #     (state_vars[2*t_step:2*(t_step+1)] - x_g)
 	    objective_function_proj_nl += csi.norm_2(state_vars[2*t_step:2*(t_step+1)] - x_g)
 
 	    # Iterate through the list of obstacles
-	    for obs_ind in range(num_obs):
+	    for obs_ind in range(self.num_obs):
 
 		# Update the objective function component for turning
 		objective_function_proj_nl -= gamma_obs_t[t_step,obs_ind] * \
@@ -865,26 +845,26 @@ class RobotSaAEnvironment:
 	    # Append the lower and upper bounds for each of the variables at the current time step
 	    
 	    # Position components
-	    variable_lower_bounds_state_vars_proj_nl += [x_min,y_min]
-	    variable_upper_bounds_state_vars_proj_nl += [x_max,y_max]
+	    variable_lower_bounds_state_vars_proj_nl += [-self.rob_state_x_max,-self.rob_state_y_max]
+	    variable_upper_bounds_state_vars_proj_nl += [self.rob_state_x_max,self.rob_state_y_max]
 
 	    # heading angle components
 	    variable_lower_bounds_th_proj_nl += [-np.inf]
 	    variable_upper_bounds_th_proj_nl += [np.inf]
 
 	    # velocity components
-	    variable_lower_bounds_v_proj_nl += [v_min]
-	    variable_upper_bounds_v_proj_nl += [v_max]
+	    variable_lower_bounds_v_proj_nl += [self.rob_min_velocity]
+	    variable_upper_bounds_v_proj_nl += [self.rob_max_velocity]
 
 	    # turning rate components
-	    variable_lower_bounds_tr_proj_nl += [-tr_abs_max]
-	    variable_upper_bounds_tr_proj_nl += [tr_abs_max]
+	    variable_lower_bounds_tr_proj_nl += [-self.rob_max_turn_rate]
+	    variable_upper_bounds_tr_proj_nl += [self.rob_max_turn_rate]
 
 	# Iterate through the obstacles, assign the projection-based hyperplane constraints.
-	obs_pos_A = csi.SX.sym('obs_pos_mean',num_t_steps,2,num_obs)
-	obs_pos_b = csi.SX.sym('obs_pos_cov',num_t_steps,num_obs)
-	for obs_ind in range(num_obs):
-	    for t_step in range(num_t_steps):
+	obs_pos_A = csi.SX.sym('obs_pos_mean',self.planning_horizon,2,self.num_obs)
+	obs_pos_b = csi.SX.sym('obs_pos_cov',self.planning_horizon,self.num_obs)
+	for obs_ind in range(self.num_obs):
+	    for t_step in range(self.planning_horizon):
 		constraints_obs_proj_nl.append( obs_pos_A[obs_ind][t_step,:] @ state_vars[2*t_step:2*(t_step+1)] - obs_pos_b[t_step,obs_ind] )
 		constraints_obs_lower_bounds_proj_nl += [-np.inf]
 		constraints_obs_upper_bounds_proj_nl += [0.0]
@@ -912,10 +892,10 @@ class RobotSaAEnvironment:
 	    obs_pos_cov_stacked.append(csi.vertcat(*obs_pos_cov[obs_ind]))
 	obs_pos_mean_stacked = csi.vertcat(*obs_pos_mean_stacked)
 	obs_pos_cov_stacked = csi.vertcat(*obs_pos_cov_stacked)
-	obs_pos_cov_stacked = csi.reshape(obs_pos_cov_stacked,4*num_t_steps*num_obs,1)
-	gamma_obs_t_stacked = csi.reshape(gamma_obs_t,num_obs*num_t_steps,1)
-	obs_A_stacked = csi.reshape(csi.vertcat(*obs_pos_A),(2*num_obs*num_t_steps,1))
-	obs_b_stacked = csi.reshape(obs_pos_b,(num_obs*num_t_steps,1))
+	obs_pos_cov_stacked = csi.reshape(obs_pos_cov_stacked,4*self.planning_horizon*self.num_obs,1)
+	gamma_obs_t_stacked = csi.reshape(gamma_obs_t,self.num_obs*self.planning_horizon,1)
+	obs_A_stacked = csi.reshape(csi.vertcat(*obs_pos_A),(2*self.num_obs*self.planning_horizon,1))
+	obs_b_stacked = csi.reshape(obs_pos_b,(self.num_obs*self.planning_horizon,1))
 
 	# Set up the projection-based MPC problem
 	all_parameters = csi.vertcat(obs_pos_mean_stacked,obs_pos_cov_stacked,obs_A_stacked,obs_b_stacked,x_i,th_i,x_g,gamma_obs_t_stacked)
@@ -923,14 +903,6 @@ class RobotSaAEnvironment:
 	self.safely_mpc_projection_solver = csi.nlpsol('solver','sqpmethod',safely_mpc_projection,\
 	    {'max_iter':10,'print_time':False,'print_header':False,'verbose':False,'print_status':False,'print_iteration':False,\
 	    'qpsol':'osqp','convexify_strategy':'regularize','error_on_fail':False,'qpsol_options':{'osqp':{'verbose':False}}})
-    	
-    	
-    
-    	
-	self.all_dv_lower_bounds_nl, self.all_dv_upper_bounds_nl,\
-	self.constraints_dyn_lower_bounds_nl, self.constraints_dyn_upper_bounds_nl,\
-	self.all_constraints_lower_bounds_nl, self.all_constraints_upper_bounds_nl,\
-	self.safely_mpc_init_guess_solver, self.safely_solver_ipopt,
 
 class LinearObstacle:
 
@@ -1253,7 +1225,7 @@ def solve_mpc(current_state,current_heading_angle,goal_state,rob_state_dim,rob_i
 
 		tmp = 1/np.sqrt(2)
 		obj_half_cur = np.linalg.cholesky(2*np.eye((rob_state_dim))).T  
-		for obs_ind in range(num_obs):
+		for obs_ind in range(n_obstacles):
 			
 			# Initialize for the current stack
 			G_quad = []
@@ -1282,7 +1254,7 @@ def solve_mpc(current_state,current_heading_angle,goal_state,rob_state_dim,rob_i
 				# current quadratic cone for the objective term
 				G_quad1_cur = np.zeros((1,4*planning_horizon))
 				G_quad1_cur[0,2*t_step:2*(t_step+1)] = f_obj_cur.T
-				G_quad1_cur[0,2*num_t_steps + t_step] = -tmp
+				G_quad1_cur[0,2*planning_horizon + t_step] = -tmp
 				G_quad2_cur = np.zeros((2,4*planning_horizon))
 				G_quad2_cur[:,2*t_step:2*(t_step+1)] = -obj_half_cur
 				G_quad3_cur = np.zeros((1,4*planning_horizon))
@@ -1352,7 +1324,7 @@ def solve_mpc(current_state,current_heading_angle,goal_state,rob_state_dim,rob_i
 			p=params_act_projection_mpc)
 		
 		# Dual variables
-		dual_variables_hyperplanes = np.array(sol['lam_g'][0:num_obs*num_t_steps])
+		dual_variables_hyperplanes = np.array(sol['lam_g'][0:n_obstacles*planning_horizon])
 		traj = np.array(sol['x'])[0:rob_state_dim*planning_horizon]
 		robot_input_sequence = np.array(sol['x'])[rob_state_dim*planning_horizon:(rob_state_dim+rob_input_dim)*planning_horizon]
 		robot_heading_angle_sequence = np.array(sol['x'])[rob_state_dim+rob_input_dim)*planning_horizon:(rob_state_dim+rob_input_dim+1)*planning_horizon]
