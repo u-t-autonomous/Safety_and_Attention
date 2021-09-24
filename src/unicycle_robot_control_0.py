@@ -37,7 +37,16 @@ from unicycle_dc_motion_planning_ecos import \
     (ecos_unicycle_shared_cons, solve_obs_free_ecos_unicycle,
      stack_params_for_ecos, dc_motion_planning_call_ecos_unicycle)
 from unicycle_Robot_SaA_Environment import LinearObstacle, NonlinearObstacle, RobotSaAEnvironment
+<<<<<<< Updated upstream
 from ecosqp_file import ecosqp
+=======
+
+# For solving MPC problem
+import casadi as csi
+import osqp
+import ecos
+from scipy.sparse import csc_matrix as csc
+>>>>>>> Stashed changes
 
 # FOR MAPPING USING THE VICON AND TURTLEBOT CAMERA SYSTEM
 from detect_colors import object_map
@@ -247,11 +256,6 @@ def wait_for_time():
 # Adjusted 'main' to run using unicycle dynamics
 if __name__ == '__main__':
 
-    # For parallel processing
-    freeze_support()
-    pool = multiprocessing.Pool()
-    #pool = ThreadPool()
-
     np.random.seed(0)
 
     rospy.init_node("robot_control_0_node", anonymous=True)
@@ -311,7 +315,7 @@ if __name__ == '__main__':
 
     # Define the state that the robotic agent must travel to and the L2-norm
     # tolerance for which we can say that the agent "reached" that state
-    goal_state = np.array([1.9, 1.9])
+    goal_state = np.array([[1.9], [1.9]])
     goal_tolerance = 10e-2
 
     # Parameter for constructing Gaussian level sets of obstacle positions
@@ -319,10 +323,10 @@ if __name__ == '__main__':
     beta = 0.01
 
     # Number of time steps into the future that the robotic agent must plan
-    planning_horizon = 12
+    planning_horizon = 30
 
     # Initial position of the robotic agent in the environment
-    rob_init_pos = np.array([-2.5, -0.75])
+    rob_init_pos = np.array([[-2.5],[-0.75]])
 
     # The size of the circle (assumed to be in meters?) for which the robotic
     # agent can make an observation about an obstacle if the obstacle is within
@@ -342,22 +346,33 @@ if __name__ == '__main__':
     # parameter, will probably need to play around with this value)
     sampling_time = 1.
 
+    # Parameters weighting how to weight turning towards obstacle vs reaching goal state
+    discount_factor = 0.7
+    discount_weight = 15
+
     # Now that we have all of the ingredients, create the robot safety and
     # attention environment
     robotic_agent_environ = RobotSaAEnvironment(goal_state, goal_tolerance, beta,
                                                 planning_horizon, rob_init_pos, rob_A_mat,
                                                 obs_field_of_view_rad, obs_interval, rob_state_x_max,
                                                 rob_state_y_max, sampling_time, rob_obs_strat,
+<<<<<<< Updated upstream
                                                 max_heading_view, rob_max_velocity, rob_max_turn_rate,
                                                 rob_agg_turn_rate, most_rel_obs_ind, num_turning_rates,
                                                 turning_rates_array, rob_heading_ang)
+=======
+                                                max_heading_view, rob_min_velocity, rob_max_velocity,
+                                                rob_max_turn_rate, rob_agg_turn_rate, most_rel_obs_ind,
+                                                num_turning_rates, turning_rates_array, rob_heading_ang,
+                                                discount_factor, discount_weight)
+>>>>>>> Stashed changes
 
     # Add the first obstacle
     # obs_1_init = np.array([-1.4, -0.3])
-    obs_1_init = np.array([-1.75, 0.25])
+    obs_1_init = np.array([[-1.75], [0.25]])
     obs_1_A_matrix = np.eye(2)
     obs_1_F_matrix = np.eye(2)
-    obs_1_mean_vec = np.array([0.20, 0.0])
+    obs_1_mean_vec = np.array([[0.20],[0.0]])
     obs_1_cov_mat = np.array([[0.008, 0.001], [0.001, 0.008]])
     obs_1_radius = 0.25
     robotic_agent_environ.add_linear_obstacle(obs_1_init, obs_1_A_matrix,
@@ -365,10 +380,10 @@ if __name__ == '__main__':
 
     # Add the second obstacle
     # obs_2_init = np.array([1.3, 1.])
-    obs_2_init = np.array([1.2, 1.8])
+    obs_2_init = np.array([[1.2], [1.8]])
     obs_2_A_matrix = np.eye(2)
     obs_2_F_matrix = np.eye(2)
-    obs_2_mean_vec = np.array([0.05, -0.1])
+    obs_2_mean_vec = np.array([[0.05],[-0.1]])
     obs_2_cov_mat = np.array([[0.004, 0.0015], [0.0015, 0.005]])
     obs_2_radius = 0.25
     robotic_agent_environ.add_linear_obstacle(obs_2_init, obs_2_A_matrix,
@@ -376,14 +391,17 @@ if __name__ == '__main__':
 
     # Add the third obstacle
     # obs_3_init = np.array([-0.3, -1.2])
-    obs_3_init = np.array([2.25, -2.0])
+    obs_3_init = np.array([[2.25], [-2.0]])
     obs_3_A_matrix = np.eye(2)
     obs_3_F_matrix = np.eye(2)
-    obs_3_mean_vec = np.array([0.025, 0.15])
+    obs_3_mean_vec = np.array([[0.025],[0.15]])
     obs_3_cov_mat = np.array([[0.005, 0.0015], [0.0015, 0.008]])
     obs_3_radius = 0.25
     robotic_agent_environ.add_linear_obstacle(obs_3_init, obs_3_A_matrix,
                                               obs_3_F_matrix, obs_3_mean_vec, obs_3_cov_mat, obs_3_radius)
+
+    # Construct the solvers and get the bounds.
+    robotic_agent_environ.construct_mpc_solvers_and_get_bounds()
 
     # Wait until all other robots are ready
     rdy = cc.ReadyTool(robot_name)
@@ -407,7 +425,7 @@ if __name__ == '__main__':
         # Assume that the nominal trajectory also has the heading angle stacked underneath,
         # making the matrix exist in R^((state_dim+1)x(time_horizon))
         next_p = robotic_agent_environ.nominal_trajectory[:, 0]
-        next_yaw = robotic_agent_environ.heading_angle_sequence[1]
+        next_yaw = robotic_agent_environ.heading_angle_sequence[0]
 
         # Need to convert yaw in [0,2pi] to [-pi,pi]
         if 0<=next_yaw <= np.pi:
@@ -438,13 +456,15 @@ if __name__ == '__main__':
         obs_2_y = vel_controller_2.y
         obs_3_x = vel_controller_3.x
         obs_3_y = vel_controller_3.y
-        obs_1_cur_loc = np.array([obs_1_x, obs_1_y])
-        obs_2_cur_loc = np.array([obs_2_x, obs_2_y])
-        obs_3_cur_loc = np.array([obs_3_x, obs_3_y])
+        obs_1_cur_loc = np.array([[obs_1_x], [obs_1_y]])
+        obs_2_cur_loc = np.array([[obs_2_x], [obs_2_y]])
+        obs_3_cur_loc = np.array([[obs_3_x], [obs_3_y]])
         obs_act_positions = [obs_1_cur_loc, obs_2_cur_loc, obs_3_cur_loc]
 
         # Query camera to determine which obstacles are in view
         obs_in_view = obstacle_tracker.which_obj()
+
+        print(obs_in_view)
 
         # Convert obs in view from color to number of obtacle
         obs_in_view_list = []
@@ -457,10 +477,8 @@ if __name__ == '__main__':
 
         # Now, update the simulated and actual positions of the robot, obstacles.
         robotic_agent_environ.update_obs_positions_and_plots(obs_act_positions,obs_in_view_list)
-        robotic_agent_environ.rob_pos = np.array([vel_controller_0.x, vel_controller_0.y])
+        robotic_agent_environ.rob_pos = np.array([[vel_controller_0.x], [vel_controller_0.y]])
         robotic_agent_environ.heading_angle = vel_controller_0.yaw
-
-        print(robotic_agent_environ.heading_angle)
 
         # print('----------')
         # print(robotic_agent_environ.most_rel_obs_ind)

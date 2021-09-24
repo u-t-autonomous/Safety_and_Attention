@@ -41,9 +41,9 @@ class TBVelocityController:
         self.__odom_sub = rospy.Subscriber(odom_topic_name, Odometry, self.__odomCB)
         self.cmd_vel_pub = rospy.Publisher(cmd_vel_topic_name, Twist, queue_size = 1)
 
-        self.x = None
-        self.y = None
-        self.yaw = None
+        self.x = 0
+        self.y = 0
+        self.yaw = 0
         self.r = rospy.Rate(4)
         self.vel_cmd = Twist()
 
@@ -63,6 +63,17 @@ class TBVelocityController:
     def go_to_point(self, data):
     	# input variable goal should be of type [geometry_msgs/Point,yaw]
         goal = data#[0]
+
+        self.vel_cmd.linear.x = 0
+        self.vel_cmd.linear.y = 0
+        self.vel_cmd.linear.z = 0
+
+        self.vel_cmd.angular.x = 0
+        self.vel_cmd.angular.y = 0
+        self.vel_cmd.angular.z = 0
+
+        self.cmd_vel_pub.publish(self.vel_cmd)
+
         # final_yaw = data[1]
 
         print("Starting to head towards the waypoint")
@@ -76,14 +87,15 @@ class TBVelocityController:
         if self.debug:
             print("Starting to rotate towards waypoint")
         dist_tol = .05
-        max_vel = .2
-        max_ang_vel = np.pi/3
+        ang_tol = np.pi/180
+        max_vel = .175
+        max_ang_vel = np.pi/6
 
         kp_lin = 1
         ki_lin = 0
         kd_lin = .5
 
-        kp_ang = 2.5
+        kp_ang = 2.0
         ki_ang = 0
         kd_ang = 1.5
 
@@ -93,8 +105,15 @@ class TBVelocityController:
         previous_angle_error = angle_error
         total_distance_error = 0
         total_angle_error = 0
+        # while abs(angle_error) > ang_tol:
+        #     angle_error = (correctAngle(np.arctan2(goal.y - self.y, goal.x - self.x) - correctAngle(self.yaw)) + previous_angle_error)/2
+        #     total_angle_error+=(angle_error+previous_angle_error)/2
+        #     self.vel_cmd.angular.z = min_mag((kp_ang*angle_error+ki_ang*total_angle_error+kd_ang*(angle_error - previous_angle_error)), max_ang_vel)
+        #     previous_angle_error = angle_error
+        #     self.cmd_vel_pub.publish(self.vel_cmd)
+        #     self.r.sleep()
 
-        while abs(distance_error) > dist_tol:
+        while distance_error > dist_tol:
             # if self.debug:
             # print("Angle to goal: {:.5f},   Yaw: {:.5f},   Angle error: {:.5f}".format(angle_to_goal, self.yaw, angle_error))
             print("error x: {:.5f}, error y: {:.5f} error theta: {:.5f}".format(goal.x - self.x,goal.y - self.y, angle_error))
@@ -104,7 +123,9 @@ class TBVelocityController:
             total_angle_error+=(angle_error+previous_angle_error)/2
 
             self.vel_cmd.angular.z = min_mag((kp_ang*angle_error+ki_ang*total_angle_error+kd_ang*(angle_error - previous_angle_error)), max_ang_vel)
-            self.vel_cmd.linear.x = np.minimum((kp_lin*distance_error+ki_lin*total_distance_error+kd_lin*(distance_error - previous_distance_error)), max_vel)#*(np.fabs(np.pi-angle_error)/np.pi)**.125
+            self.vel_cmd.linear.x = np.minimum((kp_lin*distance_error+ki_lin*total_distance_error+kd_lin*(distance_error - previous_distance_error)), max_vel)*(np.fabs(np.pi-angle_error)/np.pi)**.125
+
+            print("ang cmd: {:.5f}, lin cmd: {:.5f}".format(min_mag((kp_ang*angle_error+ki_ang*total_angle_error+kd_ang*(angle_error - previous_angle_error)), max_ang_vel),np.minimum((kp_lin*distance_error+ki_lin*total_distance_error+kd_lin*(distance_error - previous_distance_error)), max_vel)*(np.fabs(np.pi-angle_error)/np.pi)**.125))
 
             previous_distance_error = distance_error
             previous_angle_error = angle_error
