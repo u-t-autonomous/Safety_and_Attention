@@ -193,7 +193,7 @@ if __name__ == '__main__':
     vel_controller_1.go_to_point(init_point_1)
 
     # Dynamics of first obstacle
-    sampling_time = 1.
+    sampling_time = 0.25
     obs_1_A_matrix = np.eye(2)
     obs_1_F_matrix = sampling_time*np.eye(2)
     obs_1_mean_vec = np.array([0.20, 0.0])

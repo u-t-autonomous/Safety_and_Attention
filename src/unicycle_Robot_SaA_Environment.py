@@ -8,10 +8,10 @@ import time as time
 from scipy.linalg import block_diag
 import matplotlib.pyplot as plt
 import matplotlib
-matplotlib.use("pgf")
-matplotlib.rcParams.update({
-    "pgf.texsystem": "pdflatex"
-})
+# matplotlib.use("pgf")
+# matplotlib.rcParams.update({
+#     "pgf.texsystem": "pdflatex"
+# })
 from matplotlib.patches import Polygon, Circle, Ellipse
 from matplotlib.collections import PatchCollection
 from numpy import linalg as LA
@@ -31,6 +31,7 @@ from unicycle_dc_motion_planning_ecos import \
 import casadi as csi
 import ecos
 import osqp
+from scipy.sparse import csc_matrix as csc
 
 # Mathematic functions
 from math import atan2
@@ -91,14 +92,6 @@ class RobotSaAEnvironment:
         self.discount_weight = discount_weight
         self.solve_times = []
     
-    
-    self.all_dv_lower_bounds_nl, self.all_dv_upper_bounds_nl,\
-    self.constraints_dyn_lower_bounds_nl, self.constraints_dyn_upper_bounds_nl,\
-    self.all_constraints_lower_bounds_nl, self.all_constraints_upper_bounds_nl,\
-    self.all_constraints_lower_bounds_proj_nl, self.all_constraints_upper_bounds_proj_nl,\
-    self.safely_mpc_init_guess_solver, self.safely_solver_ipopt, self.safely_mpc_projection_solver = \
-        self.construct_mpc_solvers_and_get_bounds()
-    
         # Plot the initial map
         safe_set_polygon = Polygon(np.array([[-self.rob_state_x_max, -self.rob_state_y_max],
             [self.rob_state_x_max, -self.rob_state_y_max],[self.rob_state_x_max, self.rob_state_y_max],
@@ -139,6 +132,7 @@ class RobotSaAEnvironment:
 
         # Overall time step in the system
         self.total_time_steps = 0
+
 
     def plot_initial_map(self,safe_set_polygon):
 
@@ -340,9 +334,9 @@ class RobotSaAEnvironment:
 
         np.random.seed(0)
     
-    #
+        #
         # Start by propagating the linear obstacles over the planning horizon
-    #
+        #
      
         # First, propagate one time step in the future
         linear_obs_mu_bars_t, linear_obs_sig_bars_t = \
@@ -359,10 +353,10 @@ class RobotSaAEnvironment:
         linear_obs_Q_mat_time_hor = get_Q_mats_over_time_hor(self.planning_horizon,
             self.num_lin_obs, self.beta, self.lin_obs_list, linear_obs_sig_bars_time_hor)
     
-    #
+        #
         # Now, propagate the nonlinear obstacles over the planning
         # horizon (assume that the turning rate is fixed)
-    #
+        #
     
         # First, propagate one time step in the future
         nonlinear_obs_mu_bars_t, nonlinear_obs_theta_t, nonlinear_obs_sig_bars_t = \
@@ -405,32 +399,35 @@ class RobotSaAEnvironment:
         
         # Construct the discount factor array:
         discount_factors = np.zeros((self.planning_horizon,self.num_obs))
-    if self.most_rel_obs_ind is not None:
-        discount_factors[:,most_rel_obs_ind] = \
-        np.array([self.discount_weight*self.discount_factor**t_step for t_step in range(planning_horizon)])
-        discount_factors = np.reshape(discount_factors.T,(planning_horizon*n_obstacles,1))
+        if self.most_rel_obs_ind is not None:
+            discount_factors[:,self.most_rel_obs_ind] = \
+            np.array([self.discount_weight*self.discount_factor**t_step for t_step in range(self.planning_horizon)])
+        discount_factors = np.reshape(discount_factors.T,(self.planning_horizon*self.num_obs,1))
 
-        # Note that "sol" is the dictionary output from the casadi function
+        # Solve the inner MPC function
         robot_RHC_trajectory, robot_input_sequence,robot_heading_angle_sequence, robot_turning_rate_sequence,\
             obs_func_val,obs_cons_dual_variables,obs_Qplus_mat_time_hor = solve_mpc(self.rob_pos,self.heading_angle,self.target_state,\
-                self.rob_state_dim,self.rob_input_dim,self.num_obs,self.obs_rad_vector,obs_mu_bars_time_hor,\
+                self.rob_state_dim,self.rob_input_dim,self.num_obs,obs_rad_vector,obs_mu_bars_time_hor,\
                 obs_Q_mat_time_hor,self.planning_horizon,\
                 self.all_dv_lower_bounds_nl,
                 self.all_dv_upper_bounds_nl,\
-            self.constraints_dyn_lower_bounds_nl,\
-            self.constraints_dyn_upper_bounds_nl,\
-            self.all_constraints_lower_bounds_nl,\
-            self.all_constraints_upper_bounds_nl,\
-            self.all_constraints_lower_bounds_proj_nl,\
-            self.all_constraints_upper_bounds_proj_nl,\
-            self.safely_mpc_init_guess_solver,\
-            self.safely_solver_ipopt,\
-            self.safely_mpc_projection_solver,\
-            discount_factors)
+                self.constraints_dyn_lower_bounds_nl,\
+                self.constraints_dyn_upper_bounds_nl,\
+                self.all_constraints_lower_bounds_nl,\
+                self.all_constraints_upper_bounds_nl,\
+                self.all_constraints_lower_bounds_proj_nl,\
+                self.all_constraints_upper_bounds_proj_nl,\
+                self.safely_mpc_init_guess_solver,\
+                self.safely_solver_ipopt,\
+                self.safely_mpc_projection_solver,\
+                discount_factors)
         
         sol_toc = time.time()
 
         self.solve_times.append(sol_toc-sol_tic)
+
+        print('double check')
+        print(robot_RHC_trajectory)
 
         # Reshape the output trajectory to a more convenient form
         robot_RHC_trajectory_state_x_time = np.reshape(
@@ -564,10 +561,11 @@ class RobotSaAEnvironment:
             all_obstacle_ell_coll[t_step].remove()
         nominal_trajectory_plot.remove()
 
+
         return robot_RHC_trajectory_state_x_time, robot_heading_angle_sequence, robot_input_sequence, robot_turning_rate_sequence
         
         
-    def construct_mpc_solvers_and_get_bounds(self)
+    def construct_mpc_solvers_and_get_bounds(self):
         """
         
         Using Casadi, construct the nonlinear mpc solvers used in the motion-planning problem
@@ -578,327 +576,329 @@ class RobotSaAEnvironment:
         # Construct the nonlinear safely MPC problem and the initial guess
         # 
 
-    # Declare the variables
-    state_vars = csi.SX.sym('state_x',2*self.planning_horizon,1)
-    state_th = csi.SX.sym('state_th',self.planning_horizon,1)
-    state_v = csi.SX.sym('state_v',self.planning_horizon,1)
-    state_tr = csi.SX.sym('state_tr',self.planning_horizon,1)
+        # Declare the variables
+        state_vars = csi.SX.sym('state_x',2*self.planning_horizon,1)
+        state_th = csi.SX.sym('state_th',self.planning_horizon,1)
+        state_v = csi.SX.sym('state_v',self.planning_horizon,1)
+        state_tr = csi.SX.sym('state_tr',self.planning_horizon,1)
 
-    # Declare what will be used as the parameters
-    obs_pos_mean = csi.SX.sym('obs_pos_mean',2,1,self.planning_horizon,self.num_obs)
-    obs_pos_cov = csi.SX.sym('obs_pos_cov',2,2,self.planning_horizon,self.num_obs)
-    x_i = csi.SX.sym('init_state',2,1)
-    th_i = csi.SX.sym('init_heading_angle')
-    x_g = csi.SX.sym('goal_state',2,1)
-    gamma_obs_t = csi.SX.sym('discount_factors',self.planning_horizon,self.num_obs)
+        # Declare what will be used as the parameters
+        obs_pos_mean = csi.SX.sym('obs_pos_mean',2,1,self.planning_horizon,self.num_obs)
+        obs_pos_cov = csi.SX.sym('obs_pos_cov',2,2,self.planning_horizon,self.num_obs)
+        x_i = csi.SX.sym('init_state',2,1)
+        th_i = csi.SX.sym('init_heading_angle')
+        x_g = csi.SX.sym('goal_state',2,1)
+        gamma_obs_t = csi.SX.sym('discount_factors',self.planning_horizon,self.num_obs)
 
-    # Initialize the objective function
-    objective_function_nl = 0
+        # Initialize the objective function
+        objective_function_nl = 0
 
-    # Initialize constraints for dynamics
-    constraints_dyn_nl = []
-    constraints_dyn_lower_bounds_nl = []
-    constraints_dyn_upper_bounds_nl = []
+        # Initialize constraints for dynamics
+        constraints_dyn_nl = []
+        constraints_dyn_lower_bounds_nl = []
+        constraints_dyn_upper_bounds_nl = []
 
-    # Initialize the constraints for elliptical keep-out zone
-    constraints_obs_nl = []
-    constraints_obs_lower_bounds_nl = []
-    constraints_obs_upper_bounds_nl = []
+        # Initialize the constraints for elliptical keep-out zone
+        constraints_obs_nl = []
+        constraints_obs_lower_bounds_nl = []
+        constraints_obs_upper_bounds_nl = []
 
-    # Initialize variable bounds
-    variable_lower_bounds_state_vars_nl = []
-    variable_upper_bounds_state_vars_nl = []
-    variable_lower_bounds_th_nl = []
-    variable_upper_bounds_th_nl = []
-    variable_lower_bounds_v_nl = []
-    variable_upper_bounds_v_nl = []
-    variable_lower_bounds_tr_nl = []
-    variable_upper_bounds_tr_nl = []
+        # Initialize variable bounds
+        variable_lower_bounds_state_vars_nl = []
+        variable_upper_bounds_state_vars_nl = []
+        variable_lower_bounds_th_nl = []
+        variable_upper_bounds_th_nl = []
+        variable_lower_bounds_v_nl = []
+        variable_upper_bounds_v_nl = []
+        variable_lower_bounds_tr_nl = []
+        variable_upper_bounds_tr_nl = []
 
-    # Loop through variables and construct the objective function
-    for t_step in range(self.planning_horizon): 
+        # Loop through variables and construct the objective function
+        for t_step in range(self.planning_horizon): 
 
-        # Update the objective function component for reaching the goal state
-        objective_function_nl += csi.norm_2(state_vars[2*t_step:2*(t_step+1)] - x_g)
+            # Update the objective function component for reaching the goal state
+            objective_function_nl += csi.norm_2(state_vars[2*t_step:2*(t_step+1)] - x_g)
 
-        # Iterate through the list of obstacles
+            # Iterate through the list of obstacles
+            for obs_ind in range(self.num_obs):
+
+                # Update the objective function component for turning
+                objective_function_nl -= gamma_obs_t[t_step,obs_ind] * \
+                    csi.dot( obs_pos_mean[obs_ind][t_step] - state_vars[2*t_step:2*(t_step+1)],\
+                             csi.vertcat(csi.cos(state_th[t_step]),csi.sin(state_th[t_step])) )
+
+            # Append the current dynamics constraint: differentiate whether beginning
+            # from the initial state or not
+            if t_step == 0:
+
+                # Initial position dynamics constraint
+                constraints_dyn_nl.append(csi.vertcat(state_vars[2*t_step:2*(t_step+1)] \
+                    - x_i 
+                    - self.sampling_time*csi.vertcat(state_v[t_step]*csi.cos(th_i),state_v[t_step]*csi.sin(th_i))))
+                constraints_dyn_lower_bounds_nl += [0.0,0.0]
+                constraints_dyn_upper_bounds_nl += [0.0,0.0]
+
+                # Initial heading angle dynamics constraint
+                constraints_dyn_nl.append(state_th[t_step] - th_i - self.sampling_time*state_tr[t_step])
+                constraints_dyn_lower_bounds_nl += [0.0]
+                constraints_dyn_upper_bounds_nl += [0.0]
+
+            else:
+
+                # Intermediate / terminal position dynamics constraint
+                constraints_dyn_nl.append(state_vars[2*t_step:2*(t_step+1)] \
+                    - state_vars[2*(t_step-1):2*t_step] \
+                    - self.sampling_time*csi.vertcat(state_v[t_step]*csi.cos(state_th[t_step-1]),state_v[t_step]*csi.sin(state_th[t_step-1])))
+                constraints_dyn_lower_bounds_nl += [0.0,0.0]
+                constraints_dyn_upper_bounds_nl += [0.0,0.0]
+
+                # Intermediate / terminal heading angle constraint
+                constraints_dyn_nl.append(state_th[t_step] - state_th[t_step-1] - self.sampling_time*state_tr[t_step])
+                constraints_dyn_lower_bounds_nl += [0.0]
+                constraints_dyn_upper_bounds_nl += [0.0]
+
+            # Append the lower and upper bounds for each of the variables at the current time step
+                
+            # Position components
+            variable_lower_bounds_state_vars_nl += [-self.rob_state_x_max,-self.rob_state_y_max]
+            variable_upper_bounds_state_vars_nl += [self.rob_state_x_max,self.rob_state_y_max]
+
+            # heading angle components
+            variable_lower_bounds_th_nl += [-np.inf]
+            variable_upper_bounds_th_nl += [np.inf]
+
+            # velocity components
+            variable_lower_bounds_v_nl += [self.rob_min_velocity]
+            variable_upper_bounds_v_nl += [self.rob_max_velocity]
+
+            # turning rate components
+            variable_lower_bounds_tr_nl += [-1*self.rob_max_turn_rate]
+            variable_upper_bounds_tr_nl += [self.rob_max_turn_rate]
+
+        # Iterate through the ellipses at each time step, add constraints
         for obs_ind in range(self.num_obs):
+            for t_step in range(self.planning_horizon):
 
-        # Update the objective function component for turning
-        objective_function_nl -= gamma_obs_t[t_step,obs_ind] * \
-            csi.dot( obs_pos_mean[obs_ind][t_step] - state_vars[2*t_step:2*(t_step+1)],\
-                     csi.vertcat(csi.cos(state_th[t_step]),csi.sin(state_th[t_step])) )
+                # Access the mean position and ellipse shape of the current obstacle:
+                cur_obs_mean_pos = obs_pos_mean[obs_ind][t_step]
+                cur_obs_pos_cov = obs_pos_cov[obs_ind][t_step]
 
-        # Append the current dynamics constraint: differentiate whether beginning
-        # from the initial state or not
-        if t_step == 0:
+                constraints_obs_nl.append( (state_vars[2*t_step:2*(t_step+1)] - cur_obs_mean_pos).T @ \
+                    cur_obs_pos_cov @ (state_vars[2*t_step:2*(t_step+1)] - cur_obs_mean_pos) )
+                constraints_obs_lower_bounds_nl += [1.0]
+                constraints_obs_upper_bounds_nl += [np.inf]
 
-        # Initial position dynamics constraint
-        constraints_dyn_nl.append(csi.vertcat(state_vars[2*t_step:2*(t_step+1)] \
-            - x_i 
-            - dt*csi.vertcat(state_v[t_step]*csi.cos(th_i),state_v[t_step]*csi.sin(th_i))))
-        constraints_dyn_lower_bounds_nl += [0.0,0.0]
-        constraints_dyn_upper_bounds_nl += [0.0,0.0]
+        # Combine all of the constraints
+        all_constraints_nl = csi.vertcat(csi.vertcat(*constraints_dyn_nl),csi.vertcat(*constraints_obs_nl))
+        self.constraints_dyn_lower_bounds_nl = constraints_dyn_lower_bounds_nl
+        self.constraints_dyn_upper_bounds_nl = constraints_dyn_upper_bounds_nl
+        self.all_constraints_lower_bounds_nl = constraints_dyn_lower_bounds_nl + constraints_obs_lower_bounds_nl
+        self.all_constraints_upper_bounds_nl = constraints_dyn_upper_bounds_nl + constraints_obs_upper_bounds_nl
 
-        # Initial heading angle dynamics constraint
-        constraints_dyn_nl.append(state_th[t_step] - th_i - dt*state_tr[t_step])
-        constraints_dyn_lower_bounds_nl += [0.0]
-        constraints_dyn_upper_bounds_nl += [0.0]
+        # Combine all of the variables
+        all_decision_variables_nl = csi.vertcat(state_vars,state_v,state_th,state_tr)
 
-        else:
+        # Combine all of the variable bounds
+        self.all_dv_lower_bounds_nl = csi.vertcat(csi.vertcat(variable_lower_bounds_state_vars_nl),csi.vertcat(variable_lower_bounds_v_nl),\
+            csi.vertcat(variable_lower_bounds_th_nl),csi.vertcat(variable_lower_bounds_tr_nl))
+        self.all_dv_upper_bounds_nl = csi.vertcat(csi.vertcat(variable_upper_bounds_state_vars_nl),csi.vertcat(variable_upper_bounds_v_nl),\
+            csi.vertcat(variable_upper_bounds_th_nl),csi.vertcat(variable_upper_bounds_tr_nl))
 
-        # Intermediate / terminal position dynamics constraint
-        constraints_dyn_nl.append(state_vars[2*t_step:2*(t_step+1)] \
-            - state_vars[2*(t_step-1):2*t_step] \
-            - dt*csi.vertcat(state_v[t_step]*csi.cos(state_th[t_step-1]),state_v[t_step]*csi.sin(state_th[t_step-1])))
-        constraints_dyn_lower_bounds_nl += [0.0,0.0]
-        constraints_dyn_upper_bounds_nl += [0.0,0.0]
-
-        # Intermediate / terminal heading angle constraint
-        constraints_dyn_nl.append(state_th[t_step] - state_th[t_step-1] - dt*state_tr[t_step])
-        constraints_dyn_lower_bounds_nl += [0.0]
-        constraints_dyn_upper_bounds_nl += [0.0]
-
-        # Append the lower and upper bounds for each of the variables at the current time step
-        
-        # Position components
-        variable_lower_bounds_state_vars_nl += [-self.rob_state_x_max,-self.rob_state_y_max]
-        variable_upper_bounds_state_vars_nl += [self.rob_state_x_max,self.rob_state_y_max]
-
-        # heading angle components
-        variable_lower_bounds_th_nl += [-np.inf]
-        variable_upper_bounds_th_nl += [np.inf]
-
-        # velocity components
-        variable_lower_bounds_v_nl += [self.rob_min_velocity]
-        variable_upper_bounds_v_nl += [self.rob_max_velocity]
-
-        # turning rate components
-        variable_lower_bounds_tr_nl += [-1*self.rob_max_turn_rate]
-        variable_upper_bounds_tr_nl += [self.rob_max_turn_rate]
-
-    # Iterate through the ellipses at each time step, add constraints
-    for obs_ind in range(self.num_obs):
-        for t_step in range(self.planning_horizon):
-
-        # Access the mean position and ellipse shape of the current obstacle:
-        cur_obs_mean_pos = obs_pos_mean[obs_ind][t_step]
-        cur_obs_pos_cov = obs_pos_cov[obs_ind][t_step]
-
-        constraints_obs_nl.append( (state_vars[2*t_step:2*(t_step+1)] - cur_obs_mean_pos).T @ \
-            cur_obs_pos_cov @ (state_vars[2*t_step:2*(t_step+1)] - cur_obs_mean_pos) )
-        constraints_obs_lower_bounds_nl += [1.0]
-        constraints_obs_upper_bounds_nl += [np.inf]
-
-    # Combine all of the constraints
-    all_constraints_nl = csi.vertcat(csi.vertcat(*constraints_dyn_nl),csi.vertcat(*constraints_obs_nl))
-    self.constraints_dyn_lower_bounds_nl = constraints_dyn_lower_bounds_nl
-    self.constraints_dyn_upper_bounds_nl = constraints_dyn_upper_bounds_nl
-    self.all_constraints_lower_bounds_nl = constraints_dyn_lower_bounds_nl + constraints_obs_lower_bounds_nl
-    self.all_constraints_upper_bounds_nl = constraints_dyn_upper_bounds_nl + constraints_obs_upper_bounds_nl
-
-    # Combine all of the variables
-    all_decision_variables_nl = csi.vertcat(state_vars,state_v,state_th,state_tr)
-
-    # Combine all of the variable bounds
-    self.all_dv_lower_bounds_nl = csi.vertcat(csi.vertcat(variable_lower_bounds_state_vars_nl),csi.vertcat(variable_lower_bounds_v_nl),\
-        csi.vertcat(variable_lower_bounds_th_nl),csi.vertcat(variable_lower_bounds_tr_nl))
-    self.all_dv_upper_bounds_nl = csi.vertcat(csi.vertcat(variable_upper_bounds_state_vars_nl),csi.vertcat(variable_upper_bounds_v_nl),\
-        csi.vertcat(variable_upper_bounds_th_nl),csi.vertcat(variable_upper_bounds_tr_nl))
-
-    # Combine all of the parameters
-    # Note that casadi uses a sparse-like representation.
-    obs_pos_mean_stacked = []
-    obs_pos_cov_stacked = []
-    for obs_ind in range(self.num_obs):
-        obs_pos_mean_stacked.append(csi.vertcat(*obs_pos_mean[obs_ind]))
-        obs_pos_cov_stacked.append(csi.vertcat(*obs_pos_cov[obs_ind]))
-    obs_pos_mean_stacked = csi.vertcat(*obs_pos_mean_stacked)
-    obs_pos_cov_stacked = csi.vertcat(*obs_pos_cov_stacked)
-    obs_pos_cov_stacked = csi.reshape(obs_pos_cov_stacked,4*self.planning_horizon*self.num_obs,1)
-    gamma_obs_t_stacked = csi.reshape(gamma_obs_t,self.num_obs*self.planning_horizon,1)
-
-    all_parameters_nl = csi.vertcat(obs_pos_mean_stacked,obs_pos_cov_stacked,x_i,th_i,x_g,gamma_obs_t_stacked)
-
-    all_parameters_init = csi.vertcat(obs_pos_mean_stacked,obs_pos_cov_stacked,x_i,th_i,x_g,gamma_obs_t_stacked)
-
-    # Construct the initial guess to feed into the MPC problem with dynamic obstacles
-    safely_mpc_init_guess = {'x':all_decision_variables_nl,\
-                        'p':all_parameters_init,'f':objective_function_nl,'g':csi.vertcat(*constraints_dyn_nl)}
-
-    # flags = ["-O3"]
-    # compiler = "gcc"
-    # jit_options = {"flags": flags, "verbose": True, "compiler": compiler}
-    safely_mpc_init_guess_solver = csi.nlpsol('solver','ipopt',safely_mpc_init_guess,\
-        # {"jit": True, "compiler": "shell", "jit_options": jit_options,'print_time':False,'verbose':False,\
-        #  'ipopt':{'print_level':0}})
-        {'print_time':False,'verbose':False,'ipopt':{'print_level':0}})
-
-
-    # Construct the Safely MPC problem
-    safely_mpc = {'x':all_decision_variables_nl,'p':all_parameters_nl,'f':objective_function_nl,'g':all_constraints_nl}
-
-    # Declare the solver
-
-    # ipopt: tried and true :)
-    # flags = ["-O3"]
-    # compiler = "gcc"
-    # jit_options = {"flags": flags, "verbose": True, "compiler": compiler}
-    # options = {"jit": True, "compiler": "shell", "jit_options": jit_options}
-    safely_solver_ipopt = csi.nlpsol('solver','ipopt',safely_mpc,\
-        # {"jit": True, "compiler": "shell", "jit_options": jit_options,'print_time':False,'verbose':False,\
-        #  'ipopt':{'print_level':0}})
-        {'print_time':False,'verbose':False,'ipopt':{'print_level':0}})
-
-
-    #
-    # Set up the projection-based nonlinear safely MPC problem 
-    #
-
-    # Declare the variables
-    state_vars = csi.SX.sym('state_x',2*self.planning_horizon,1)
-    state_th = csi.SX.sym('state_th',self.planning_horizon,1)
-    state_v = csi.SX.sym('state_v',self.planning_horizon,1)
-    state_tr = csi.SX.sym('state_tr',self.planning_horizon,1)
-
-    # Declare what will be used as the parameters
-    obs_pos_mean = csi.SX.sym('obs_pos_mean',2,1,self.planning_horizon,self.num_obs)
-    obs_pos_cov = csi.SX.sym('obs_pos_cov',2,2,self.planning_horizon,self.num_obs) 
-    obs_pos_A = csi.SX.sym('obs_pos_A',self.planning_horizon,2,self.num_obs)
-    obs_pos_b = csi.SX.sym('obs_pos_b',self.planning_horizon,self.num_obs)
-    x_i = csi.SX.sym('init_state',2,1)
-    th_i = csi.SX.sym('init_heading_angle')
-    x_g = csi.SX.sym('goal_state',2,1)
-    gamma_obs_t = csi.SX.sym('discount_factors',self.planning_horizon,self.num_obs)
-
-    # Initialize the objective function
-    objective_function_proj_nl = 0
-
-    # Initialize constraints for dynamics
-    constraints_dyn_proj_nl = []
-    constraints_dyn_lower_bounds_proj_nl = []
-    constraints_dyn_upper_bounds_proj_nl = []
-
-    # Initialize the constraints for the projection-based linear inequalities
-    constraints_obs_proj_nl = []
-    constraints_obs_lower_bounds_proj_nl = []
-    constraints_obs_upper_bounds_proj_nl = []
-
-    # Initialize variable bounds
-    variable_lower_bounds_state_vars_proj_nl = []
-    variable_upper_bounds_state_vars_proj_nl = []
-    variable_lower_bounds_th_proj_nl = []
-    variable_upper_bounds_th_proj_nl = []
-    variable_lower_bounds_v_proj_nl = []
-    variable_upper_bounds_v_proj_nl= []
-    variable_lower_bounds_tr_proj_nl = []
-    variable_upper_bounds_tr_proj_nl = []
-
-    # Loop through variables and construct the objective function, dynamics constraints
-    for t_step in range(self.planning_horizon): 
-
-        # Update the objective function
-        objective_function_proj_nl += csi.norm_2(state_vars[2*t_step:2*(t_step+1)] - x_g)
-
-        # Iterate through the list of obstacles
+        # Combine all of the parameters
+        # Note that casadi uses a sparse-like representation.
+        obs_pos_mean_stacked = []
+        obs_pos_cov_stacked = []
         for obs_ind in range(self.num_obs):
+            obs_pos_mean_stacked.append(csi.vertcat(*obs_pos_mean[obs_ind]))
+            obs_pos_cov_stacked.append(csi.vertcat(*obs_pos_cov[obs_ind]))
+        obs_pos_mean_stacked = csi.vertcat(*obs_pos_mean_stacked)
+        obs_pos_cov_stacked = csi.vertcat(*obs_pos_cov_stacked)
+        obs_pos_cov_stacked = csi.reshape(obs_pos_cov_stacked,4*self.planning_horizon*self.num_obs,1)
+        gamma_obs_t_stacked = csi.reshape(gamma_obs_t,self.num_obs*self.planning_horizon,1)
 
-        # Update the objective function component for turning
-        objective_function_proj_nl -= gamma_obs_t[t_step,obs_ind] * \
-            csi.dot( obs_pos_mean[obs_ind][t_step] - state_vars[2*t_step:2*(t_step+1)],\
-                     csi.vertcat(csi.cos(state_th[t_step]),csi.sin(state_th[t_step])) )
+        all_parameters_nl = csi.vertcat(obs_pos_mean_stacked,obs_pos_cov_stacked,x_i,th_i,x_g,gamma_obs_t_stacked)
 
-        # Append the current dynamics constraint: differentiate whether beginning
-        # from the initial state or not
-        if t_step == 0:
+        all_parameters_init = csi.vertcat(obs_pos_mean_stacked,obs_pos_cov_stacked,x_i,th_i,x_g,gamma_obs_t_stacked)
 
-        # Initial position dynamics constraint
-        constraints_dyn_proj_nl.append(csi.vertcat(state_vars[2*t_step:2*(t_step+1)] \
-            - x_i 
-            - dt*csi.vertcat(state_v[t_step]*csi.cos(th_i),state_v[t_step]*csi.sin(th_i))))
-        constraints_dyn_lower_bounds_proj_nl += [0.0,0.0]
-        constraints_dyn_upper_bounds_proj_nl += [0.0,0.0]
+        # Construct the initial guess to feed into the MPC problem with dynamic obstacles
+        safely_mpc_init_guess = {'x':all_decision_variables_nl,\
+                            'p':all_parameters_init,'f':objective_function_nl,'g':csi.vertcat(*constraints_dyn_nl)}
 
-        # Initial heading angle dynamics constraint
-        constraints_dyn_proj_nl.append(state_th[t_step] - th_i - dt*state_tr[t_step])
-        constraints_dyn_lower_bounds_proj_nl += [0.0]
-        constraints_dyn_upper_bounds_proj_nl += [0.0]
+        # flags = ["-O3"]
+        # compiler = "gcc"
+        # jit_options = {"flags": flags, "verbose": True, "compiler": compiler}
+        self.safely_mpc_init_guess_solver = csi.nlpsol('solver','ipopt',safely_mpc_init_guess,\
+            # {"jit": True, "compiler": "shell", "jit_options": jit_options,'print_time':False,'verbose':False,\
+            #  'ipopt':{'print_level':0}})
+            {'print_time':False,'verbose':False,'ipopt':{'print_level':4}})
 
-        else:
 
-        # Intermediate / terminal position dynamics constraint
-        constraints_dyn_proj_nl.append(state_vars[2*t_step:2*(t_step+1)] \
-            - state_vars[2*(t_step-1):2*t_step] \
-            - dt*csi.vertcat(state_v[t_step]*csi.cos(state_th[t_step-1]),state_v[t_step]*csi.sin(state_th[t_step-1])))
-        constraints_dyn_lower_bounds_proj_nl += [0.0,0.0]
-        constraints_dyn_upper_bounds_proj_nl += [0.0,0.0]
+        # Construct the Safely MPC problem
+        safely_mpc = {'x':all_decision_variables_nl,'p':all_parameters_nl,'f':objective_function_nl,'g':all_constraints_nl}
 
-        # Intermediate / terminal heading angle constraint
-        constraints_dyn_proj_nl.append(state_th[t_step] - state_th[t_step-1] - dt*state_tr[t_step])
-        constraints_dyn_lower_bounds_proj_nl += [0.0]
-        constraints_dyn_upper_bounds_proj_nl += [0.0]
+        # Declare the solver
 
-        # Append the lower and upper bounds for each of the variables at the current time step
-        
-        # Position components
-        variable_lower_bounds_state_vars_proj_nl += [-self.rob_state_x_max,-self.rob_state_y_max]
-        variable_upper_bounds_state_vars_proj_nl += [self.rob_state_x_max,self.rob_state_y_max]
+        # ipopt: tried and true :)
+        # flags = ["-O3"]
+        # compiler = "gcc"
+        # jit_options = {"flags": flags, "verbose": True, "compiler": compiler}
+        # options = {"jit": True, "compiler": "shell", "jit_options": jit_options}
+        self.safely_solver_ipopt = csi.nlpsol('solver','ipopt',safely_mpc,\
+            # {"jit": True, "compiler": "shell", "jit_options": jit_options,'print_time':False,'verbose':False,\
+            #  'ipopt':{'print_level':0}})
+            {'print_time':False,'verbose':False,'ipopt':{'print_level':4}})
 
-        # heading angle components
-        variable_lower_bounds_th_proj_nl += [-np.inf]
-        variable_upper_bounds_th_proj_nl += [np.inf]
 
-        # velocity components
-        variable_lower_bounds_v_proj_nl += [self.rob_min_velocity]
-        variable_upper_bounds_v_proj_nl += [self.rob_max_velocity]
+        #
+        # Set up the projection-based nonlinear safely MPC problem 
+        #
 
-        # turning rate components
-        variable_lower_bounds_tr_proj_nl += [-self.rob_max_turn_rate]
-        variable_upper_bounds_tr_proj_nl += [self.rob_max_turn_rate]
+        # Declare the variables
+        state_vars = csi.SX.sym('state_x',2*self.planning_horizon,1)
+        state_th = csi.SX.sym('state_th',self.planning_horizon,1)
+        state_v = csi.SX.sym('state_v',self.planning_horizon,1)
+        state_tr = csi.SX.sym('state_tr',self.planning_horizon,1)
 
-    # Iterate through the obstacles, assign the projection-based hyperplane constraints.
-    obs_pos_A = csi.SX.sym('obs_pos_mean',self.planning_horizon,2,self.num_obs)
-    obs_pos_b = csi.SX.sym('obs_pos_cov',self.planning_horizon,self.num_obs)
-    for obs_ind in range(self.num_obs):
-        for t_step in range(self.planning_horizon):
-        constraints_obs_proj_nl.append( obs_pos_A[obs_ind][t_step,:] @ state_vars[2*t_step:2*(t_step+1)] - obs_pos_b[t_step,obs_ind] )
-        constraints_obs_lower_bounds_proj_nl += [-np.inf]
-        constraints_obs_upper_bounds_proj_nl += [0.0]
+        # Declare what will be used as the parameters
+        obs_pos_mean = csi.SX.sym('obs_pos_mean',2,1,self.planning_horizon,self.num_obs)
+        obs_pos_cov = csi.SX.sym('obs_pos_cov',2,2,self.planning_horizon,self.num_obs) 
+        obs_pos_A = csi.SX.sym('obs_pos_A',self.planning_horizon,2,self.num_obs)
+        obs_pos_b = csi.SX.sym('obs_pos_b',self.planning_horizon,self.num_obs)
+        x_i = csi.SX.sym('init_state',2,1)
+        th_i = csi.SX.sym('init_heading_angle')
+        x_g = csi.SX.sym('goal_state',2,1)
+        gamma_obs_t = csi.SX.sym('discount_factors',self.planning_horizon,self.num_obs)
 
-    # Combine all of the constraints
-    all_constraints_proj_nl = csi.vertcat(csi.vertcat(*constraints_obs_proj_nl),csi.vertcat(*constraints_dyn_proj_nl))
-    self.all_constraints_lower_bounds_proj_nl = constraints_obs_lower_bounds_proj_nl + constraints_dyn_lower_bounds_proj_nl
-    self.all_constraints_upper_bounds_proj_nl = constraints_obs_upper_bounds_proj_nl + constraints_dyn_upper_bounds_proj_nl
+        # Initialize the objective function
+        objective_function_proj_nl = 0
 
-    # Combine all of the variables
-    all_decision_variables_proj_nl = csi.vertcat(state_vars,state_v,state_th,state_tr)
+        # Initialize constraints for dynamics
+        constraints_dyn_proj_nl = []
+        constraints_dyn_lower_bounds_proj_nl = []
+        constraints_dyn_upper_bounds_proj_nl = []
 
-    # Combine all of the variable bounds
-    self.all_dv_lower_bounds_proj_nl = csi.vertcat(csi.vertcat(variable_lower_bounds_state_vars_proj_nl),csi.vertcat(variable_lower_bounds_v_proj_nl),\
-        csi.vertcat(variable_lower_bounds_th_proj_nl),csi.vertcat(variable_lower_bounds_tr_proj_nl))
-    self.all_dv_upper_bounds_proj_nl = csi.vertcat(csi.vertcat(variable_upper_bounds_state_vars_proj_nl),csi.vertcat(variable_upper_bounds_v_proj_nl),\
-        csi.vertcat(variable_upper_bounds_th_proj_nl),csi.vertcat(variable_upper_bounds_tr_proj_nl))
+        # Initialize the constraints for the projection-based linear inequalities
+        constraints_obs_proj_nl = []
+        constraints_obs_lower_bounds_proj_nl = []
+        constraints_obs_upper_bounds_proj_nl = []
 
-    # Combine all of the parameters
-    # Note that casadi uses a sparse-like representation.
-    obs_pos_mean_stacked = []
-    obs_pos_cov_stacked = []
-    for obs_ind in range(num_obs):
-        obs_pos_mean_stacked.append(csi.vertcat(*obs_pos_mean[obs_ind]))
-        obs_pos_cov_stacked.append(csi.vertcat(*obs_pos_cov[obs_ind]))
-    obs_pos_mean_stacked = csi.vertcat(*obs_pos_mean_stacked)
-    obs_pos_cov_stacked = csi.vertcat(*obs_pos_cov_stacked)
-    obs_pos_cov_stacked = csi.reshape(obs_pos_cov_stacked,4*self.planning_horizon*self.num_obs,1)
-    gamma_obs_t_stacked = csi.reshape(gamma_obs_t,self.num_obs*self.planning_horizon,1)
-    obs_A_stacked = csi.reshape(csi.vertcat(*obs_pos_A),(2*self.num_obs*self.planning_horizon,1))
-    obs_b_stacked = csi.reshape(obs_pos_b,(self.num_obs*self.planning_horizon,1))
+        # Initialize variable bounds
+        variable_lower_bounds_state_vars_proj_nl = []
+        variable_upper_bounds_state_vars_proj_nl = []
+        variable_lower_bounds_th_proj_nl = []
+        variable_upper_bounds_th_proj_nl = []
+        variable_lower_bounds_v_proj_nl = []
+        variable_upper_bounds_v_proj_nl= []
+        variable_lower_bounds_tr_proj_nl = []
+        variable_upper_bounds_tr_proj_nl = []
 
-    # Set up the projection-based MPC problem
-    all_parameters = csi.vertcat(obs_pos_mean_stacked,obs_pos_cov_stacked,obs_A_stacked,obs_b_stacked,x_i,th_i,x_g,gamma_obs_t_stacked)
-    safely_mpc_projection = {'x':all_decision_variables_proj_nl,'p':all_parameters,'f':objective_function_proj_nl,'g':all_constraints_proj_nl}
-    self.safely_mpc_projection_solver = csi.nlpsol('solver','sqpmethod',safely_mpc_projection,\
-        {'max_iter':10,'print_time':False,'print_header':False,'verbose':False,'print_status':False,'print_iteration':False,\
-        'qpsol':'osqp','convexify_strategy':'regularize','error_on_fail':False,'qpsol_options':{'osqp':{'verbose':False}}})
+        # Loop through variables and construct the objective function, dynamics constraints
+        for t_step in range(self.planning_horizon): 
+
+            # Update the objective function
+            objective_function_proj_nl += csi.norm_2(state_vars[2*t_step:2*(t_step+1)] - x_g)
+
+            # Iterate through the list of obstacles
+            for obs_ind in range(self.num_obs):
+
+                # Update the objective function component for turning
+                objective_function_proj_nl -= gamma_obs_t[t_step,obs_ind] * \
+                    csi.dot( obs_pos_mean[obs_ind][t_step] - state_vars[2*t_step:2*(t_step+1)],\
+                             csi.vertcat(csi.cos(state_th[t_step]),csi.sin(state_th[t_step])) )
+
+            # Append the current dynamics constraint: differentiate whether beginning
+            # from the initial state or not
+            if t_step == 0:
+
+                # Initial position dynamics constraint
+                constraints_dyn_proj_nl.append(csi.vertcat(state_vars[2*t_step:2*(t_step+1)] \
+                    - x_i 
+                    - self.sampling_time*csi.vertcat(state_v[t_step]*csi.cos(th_i),state_v[t_step]*csi.sin(th_i))))
+                constraints_dyn_lower_bounds_proj_nl += [0.0,0.0]
+                constraints_dyn_upper_bounds_proj_nl += [0.0,0.0]
+
+                # Initial heading angle dynamics constraint
+                constraints_dyn_proj_nl.append(state_th[t_step] - th_i - self.sampling_time*state_tr[t_step])
+                constraints_dyn_lower_bounds_proj_nl += [0.0]
+                constraints_dyn_upper_bounds_proj_nl += [0.0]
+
+            else:
+
+                # Intermediate / terminal position dynamics constraint
+                constraints_dyn_proj_nl.append(state_vars[2*t_step:2*(t_step+1)] \
+                    - state_vars[2*(t_step-1):2*t_step] \
+                    - self.sampling_time*csi.vertcat(state_v[t_step]*csi.cos(state_th[t_step-1]),state_v[t_step]*csi.sin(state_th[t_step-1])))
+                constraints_dyn_lower_bounds_proj_nl += [0.0,0.0]
+                constraints_dyn_upper_bounds_proj_nl += [0.0,0.0]
+
+                # Intermediate / terminal heading angle constraint
+                constraints_dyn_proj_nl.append(state_th[t_step] - state_th[t_step-1] - self.sampling_time*state_tr[t_step])
+                constraints_dyn_lower_bounds_proj_nl += [0.0]
+                constraints_dyn_upper_bounds_proj_nl += [0.0]
+
+            # Append the lower and upper bounds for each of the variables at the current time step
+            
+            # Position components
+            variable_lower_bounds_state_vars_proj_nl += [-self.rob_state_x_max,-self.rob_state_y_max]
+            variable_upper_bounds_state_vars_proj_nl += [self.rob_state_x_max,self.rob_state_y_max]
+
+            # heading angle components
+            variable_lower_bounds_th_proj_nl += [-np.inf]
+            variable_upper_bounds_th_proj_nl += [np.inf]
+
+            # velocity components
+            variable_lower_bounds_v_proj_nl += [self.rob_min_velocity]
+            variable_upper_bounds_v_proj_nl += [self.rob_max_velocity]
+
+            # turning rate components
+            variable_lower_bounds_tr_proj_nl += [-self.rob_max_turn_rate]
+            variable_upper_bounds_tr_proj_nl += [self.rob_max_turn_rate]
+
+        # Iterate through the obstacles, assign the projection-based hyperplane constraints.
+        obs_pos_A = csi.SX.sym('obs_pos_mean',self.planning_horizon,2,self.num_obs)
+        obs_pos_b = csi.SX.sym('obs_pos_cov',self.planning_horizon,self.num_obs)
+        for obs_ind in range(self.num_obs):
+            for t_step in range(self.planning_horizon):
+                constraints_obs_proj_nl.append( obs_pos_A[obs_ind][t_step,:] @ state_vars[2*t_step:2*(t_step+1)] - obs_pos_b[t_step,obs_ind] )
+                constraints_obs_lower_bounds_proj_nl += [-np.inf]
+                constraints_obs_upper_bounds_proj_nl += [0.0]
+
+        # Combine all of the constraints
+        all_constraints_proj_nl = csi.vertcat(csi.vertcat(*constraints_obs_proj_nl),csi.vertcat(*constraints_dyn_proj_nl))
+        self.all_constraints_lower_bounds_proj_nl = constraints_obs_lower_bounds_proj_nl + constraints_dyn_lower_bounds_proj_nl
+        self.all_constraints_upper_bounds_proj_nl = constraints_obs_upper_bounds_proj_nl + constraints_dyn_upper_bounds_proj_nl
+
+        # Combine all of the variables
+        all_decision_variables_proj_nl = csi.vertcat(state_vars,state_v,state_th,state_tr)
+
+        # Combine all of the variable bounds
+        self.all_dv_lower_bounds_proj_nl = csi.vertcat(csi.vertcat(variable_lower_bounds_state_vars_proj_nl),csi.vertcat(variable_lower_bounds_v_proj_nl),\
+            csi.vertcat(variable_lower_bounds_th_proj_nl),csi.vertcat(variable_lower_bounds_tr_proj_nl))
+        self.all_dv_upper_bounds_proj_nl = csi.vertcat(csi.vertcat(variable_upper_bounds_state_vars_proj_nl),csi.vertcat(variable_upper_bounds_v_proj_nl),\
+            csi.vertcat(variable_upper_bounds_th_proj_nl),csi.vertcat(variable_upper_bounds_tr_proj_nl))
+
+        # Combine all of the parameters
+        # Note that casadi uses a sparse-like representation.
+        obs_pos_mean_stacked = []
+        obs_pos_cov_stacked = []
+        for obs_ind in range(self.num_obs):
+            obs_pos_mean_stacked.append(csi.vertcat(*obs_pos_mean[obs_ind]))
+            obs_pos_cov_stacked.append(csi.vertcat(*obs_pos_cov[obs_ind]))
+        obs_pos_mean_stacked = csi.vertcat(*obs_pos_mean_stacked)
+        obs_pos_cov_stacked = csi.vertcat(*obs_pos_cov_stacked)
+        obs_pos_cov_stacked = csi.reshape(obs_pos_cov_stacked,4*self.planning_horizon*self.num_obs,1)
+        gamma_obs_t_stacked = csi.reshape(gamma_obs_t,self.num_obs*self.planning_horizon,1)
+        obs_A_stacked = csi.reshape(csi.vertcat(*obs_pos_A),(2*self.num_obs*self.planning_horizon,1))
+        obs_b_stacked = csi.reshape(obs_pos_b,(self.num_obs*self.planning_horizon,1))
+
+        # Set up the projection-based MPC problem
+        all_parameters = csi.vertcat(obs_pos_mean_stacked,obs_pos_cov_stacked,obs_A_stacked,obs_b_stacked,x_i,th_i,x_g,gamma_obs_t_stacked)
+        safely_mpc_projection = {'x':all_decision_variables_proj_nl,'p':all_parameters,'f':objective_function_proj_nl,'g':all_constraints_proj_nl}
+        self.safely_mpc_projection_solver = csi.nlpsol('solver','sqpmethod',safely_mpc_projection,\
+            {'max_iter':10,'print_time':False,'print_header':False,'verbose':False,'print_status':False,'print_iteration':False,\
+            'qpsol':'osqp','convexify_strategy':'regularize','error_on_fail':False,'qpsol_options':{'osqp':{'verbose':False}}})
+        self.safely_mpc_projection_solver = csi.nlpsol('solver','ipopt',safely_mpc_projection,\
+            {'print_time':False,'verbose':False,'ipopt':{'print_level':4}})
 
 class LinearObstacle:
 
@@ -1081,7 +1081,8 @@ class NonlinearObstacle:
 def solve_mpc(current_state,current_heading_angle,goal_state,rob_state_dim,rob_input_dim,n_obstacles,\
     obs_rad_vector,obs_mu_bars_time_hor,obs_Q_mat_time_hor,planning_horizon,all_dv_lower_bounds_nl,all_dv_upper_bounds_nl,\
     constraints_dyn_lower_bounds_nl,constraints_dyn_upper_bounds_nl,all_constraints_lower_bounds_nl,\
-    all_constraints_upper_bounds_nl,safely_mpc_init_guess_solver,safely_solver_ipopt,safely_mpc_projection_solver,discount_factors):
+    all_constraints_upper_bounds_nl,all_constraints_lower_bounds_proj_nl,all_constraints_upper_bounds_proj_nl,\
+    safely_mpc_init_guess_solver,safely_solver_ipopt,safely_mpc_projection_solver,discount_factors):
     """
     
     Solve the nonlinear MPC problem and obtain information on the dual varaibles corresponding to obstacle avoidance
@@ -1126,7 +1127,7 @@ def solve_mpc(current_state,current_heading_angle,goal_state,rob_state_dim,rob_i
     obs_mu_bars_time_stacked = []
     for obs_ind in range(n_obstacles):
         obs_Q_mat_time_stacked.append(np.vstack(obs_Q_mat_time_hor[obs_ind]))
-        obs_mu_bars_time_stacked.append(np.vstack(obs_mu_bars_time_hor[obs_ind])
+        obs_mu_bars_time_stacked.append(np.vstack(obs_mu_bars_time_hor[obs_ind]))
     obs_Q_mat_stacked = np.vstack(obs_Q_mat_time_stacked)
     obs_Q_mat_stacked = np.reshape( obs_Q_mat_stacked.T,((rob_state_dim**2)*n_obstacles*planning_horizon,1) )
     obs_mu_bars_stacked = np.vstack(obs_mu_bars_time_stacked)
@@ -1146,10 +1147,10 @@ def solve_mpc(current_state,current_heading_angle,goal_state,rob_state_dim,rob_i
     sol_init_mpc = safely_mpc_init_guess_solver(
                 lbx = all_dv_lower_bounds_nl,
                 ubx = all_dv_upper_bounds_nl,
-                lbg = constraints_dyn_lower_bounds_nl
-                ubg = constraints_dyn_upper_bounds_nl
-                p = params_act_init
-                x0 = init_guess
+                lbg = constraints_dyn_lower_bounds_nl,
+                ubg = constraints_dyn_upper_bounds_nl,
+                p = params_act_init,
+                x0 = init_guess)
     
     # Extract parameters from the solution of the initial problem
     obs_free_traj_func_val = float(sol_init_mpc['f'])
@@ -1173,7 +1174,6 @@ def solve_mpc(current_state,current_heading_angle,goal_state,rob_state_dim,rob_i
                       robot_initial_trajectory_state_x_time,
                       obs_rad_vector, rob_state_dim)
 
-
     #
     # Check for collisions between our nominal trajectory
     # and the obstacle ellipsoidal outer approximations
@@ -1182,8 +1182,7 @@ def solve_mpc(current_state,current_heading_angle,goal_state,rob_state_dim,rob_i
                                    obs_mu_bars_time_hor, obs_Qplus_mat_time_hor,
                                    n_obstacles)
 
-    # If there were collisions, use DC procedure to
-    # (hopefully) adjust nominal trajectory to prevent them
+    # If there were collisions, use DC procedure to adjust nominal trajectory to prevent them
     if any(collision_flag_list):
 
         #
@@ -1196,8 +1195,9 @@ def solve_mpc(current_state,current_heading_angle,goal_state,rob_state_dim,rob_i
         for obs_ind in range(n_obstacles):
             obs_Qplus_mat_time_stacked.append(np.vstack(obs_Qplus_mat_time_hor[obs_ind]))
         obs_Qplus_mat_stacked = np.vstack(obs_Qplus_mat_time_stacked)
+        print(obs_Qplus_mat_stacked)
         obs_Qplus_mat_stacked = np.reshape( obs_Qplus_mat_stacked.T,((rob_state_dim**2)*n_obstacles*planning_horizon,1) )
-    
+
         params_act_nonlinear = np.vstack((obs_mu_bars_stacked,obs_Qplus_mat_stacked,\
             current_state,current_heading_angle,goal_state,discount_factors))
         # Using ipopt to get guess
@@ -1232,8 +1232,8 @@ def solve_mpc(current_state,current_heading_angle,goal_state,rob_state_dim,rob_i
             for t_step in range(planning_horizon):
 
                 # Extract the current system parameters
-                ell_cov_cur = ellipse_covs[obs_ind][t_step]
-                ell_cen_cur = ellipse_mean_pos[obs_ind][rob_state_dim*t_step:rob_state_dim*(t_step+1)]
+                ell_cov_cur = obs_Qplus_mat_time_hor[obs_ind][t_step]
+                ell_cen_cur = obs_mu_bars_time_hor[obs_ind][t_step]
                 ag_traj_cur = nominal_trajectory[rob_state_dim*t_step:rob_state_dim*(t_step+1)]
 
                 # Perform necessary operations on the data
@@ -1278,27 +1278,26 @@ def solve_mpc(current_state,current_heading_angle,goal_state,rob_state_dim,rob_i
                 G_lin.append(G_lin_cur)
                 h_lin.append(h_lin_cur)
 
-                # Put everything together across all time steps
-                G_quad = np.vstack(G_quad)
-                h_quad = np.vstack(h_quad)
-                G_lin = np.vstack(G_lin)
-                h_lin = np.reshape(np.vstack(h_lin),(planning_horizon,1))
-                G = csc(np.vstack((G_lin,G_quad)))
-                h = np.reshape(np.vstack((h_lin,h_quad)),(9*planning_horizon,))
-                c = np.squeeze(np.vstack((np.zeros((2*planning_horizon,1)),np.ones((planning_horizon,1)),np.zeros((planning_horizon,1)))))
-                dims = {'l':planning_horizon,'q':[4 for t_step in range(2*planning_horizon)]}
-                sol = ecos.solve(c,G,h,dims,verbose=False)
+            # Put everything together across all time steps
+            G_quad = np.vstack(G_quad)
+            h_quad = np.vstack(h_quad)
+            G_lin = np.vstack(G_lin)
+            h_lin = np.reshape(np.vstack(h_lin),(planning_horizon,1))
+            G = csc(np.vstack((G_lin,G_quad)))
+            h = np.reshape(np.vstack((h_lin,h_quad)),(9*planning_horizon,))
+            c = np.squeeze(np.vstack((np.zeros((2*planning_horizon,1)),np.ones((planning_horizon,1)),np.zeros((planning_horizon,1)))))
+            dims = {'l':planning_horizon,'q':[4 for t_step in range(2*planning_horizon)]}
+            sol = ecos.solve(c,G,h,dims,verbose=False)
 
-                # Compute the hyperplanes for the current obstacle at each time step
-                projection_pts = np.array(sol['x'][0:2*planning_horizon])
-                projection_pts_x_vals = projection_pts[::2]
-                projection_pts_y_vals = projection_pts[1::2]
-
+            # Compute the hyperplanes for the current obstacle at each time step
+            projection_pts = np.array(sol['x'][0:2*planning_horizon])
+            projection_pts_x_vals = projection_pts[::2]
+            projection_pts_y_vals = projection_pts[1::2]
             # For each time step, append the current A and b linear inequality components
             for t_step in range(planning_horizon):
                 proj_pt_cur = np.array([[projection_pts_x_vals[t_step]],[projection_pts_y_vals[t_step]]])
-                ell_mean_pos_cur = obs_mu_bars_time_hor[obs_ind][2*t_step:2*(t_step+1)]
-                A_cur = -(proj_pt_cur - ell_mean_pos_cur).T @ ellipse_covs[obs_ind][t_step]
+                ell_mean_pos_cur = obs_mu_bars_time_hor[obs_ind][t_step]
+                A_cur = -(proj_pt_cur - ell_mean_pos_cur).T @ obs_Qplus_mat_time_hor[obs_ind][t_step]
                 b_cur = A_cur @ proj_pt_cur
                 hyperplane_A.append(A_cur)
                 hyperplane_b.append(b_cur)
@@ -1308,22 +1307,23 @@ def solve_mpc(current_state,current_heading_angle,goal_state,rob_state_dim,rob_i
         hyperplane_b = np.vstack(hyperplane_b)
 
         # Use SQP-based approach to get meaningful result
+        print(np.array(sol_ipopt['x'])[0:2*planning_horizon])
         params_act_projection_mpc = np.vstack((obs_mu_bars_stacked,obs_Qplus_mat_stacked,hyperplane_A_stacked,\
-            hyperplane_b,current_state,current_heading,goal_state,discount_factors))
+            hyperplane_b,current_state,current_heading_angle,goal_state,discount_factors))
         sol = safely_mpc_projection_solver(
             lbx=all_dv_lower_bounds_nl,
-            ubx=all_dv_upper_bounds_nl,\
-            lbg=all_constraints_lower_bounds_proj_nl,\
-            ubg=all_constraints_upper_bounds_proj_nl,\
-            x0 = np.array(sol_ipopt['x']),\
+            ubx=all_dv_upper_bounds_nl,
+            lbg=all_constraints_lower_bounds_proj_nl,
+            ubg=all_constraints_upper_bounds_proj_nl,
+            x0 = np.array(sol_ipopt['x']),
             p=params_act_projection_mpc)
         
         # Dual variables
         dual_variables_hyperplanes = np.array(sol['lam_g'][0:n_obstacles*planning_horizon])
-        traj = np.array(sol['x'])[0:rob_state_dim*planning_horizon]
+        robot_RHC_trajectory = np.array(sol['x'])[0:rob_state_dim*planning_horizon]
         robot_input_sequence = np.array(sol['x'])[rob_state_dim*planning_horizon:(rob_state_dim+rob_input_dim)*planning_horizon]
-        robot_heading_angle_sequence = np.array(sol['x'])[rob_state_dim+rob_input_dim)*planning_horizon:(rob_state_dim+rob_input_dim+1)*planning_horizon]
-        robot_turning_rate_sequence = np.array([rob_state_dim+rob_input_dim+1)*planning_horizon:(rob_state_dim+rob_input_dim+2)*planning_horizon]
+        robot_heading_angle_sequence = np.array(sol['x'])[(rob_state_dim+rob_input_dim)*planning_horizon:(rob_state_dim+rob_input_dim+1)*planning_horizon]
+        robot_turning_rate_sequence = np.array(sol['x'])[(rob_state_dim+rob_input_dim+1)*planning_horizon:(rob_state_dim+rob_input_dim+2)*planning_horizon]
         obs_func_val = float(sol['f'])
 
         #
@@ -1331,7 +1331,8 @@ def solve_mpc(current_state,current_heading_angle,goal_state,rob_state_dim,rob_i
         # avoided obstacle collisions                
         #
         robot_RHC_trajectory_state_x_time = np.reshape(
-            traj, (planning_horizon, rob_state_dim)).T
+            robot_RHC_trajectory, (planning_horizon, rob_state_dim)).T
+
         collision_flag_list = check_collisions(
             robot_RHC_trajectory_state_x_time, obs_mu_bars_time_hor,
             obs_Qplus_mat_time_hor, n_obstacles)
@@ -1348,7 +1349,7 @@ def solve_mpc(current_state,current_heading_angle,goal_state,rob_state_dim,rob_i
             # Use the resolved solution
 
             # Store information about dual variables at current time step
-            obs_cons_dual_variables = np.asarray(obs_cons_dual_variables)
+            obs_cons_dual_variables = np.asarray(dual_variables_hyperplanes)
 
     else:
         #

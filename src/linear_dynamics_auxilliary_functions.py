@@ -17,7 +17,8 @@ def ellipsoid_level_function(obs_center, obs_matrix, query_state):
     :param query_state_vector:
     :return: Evaluation of h
     """
-    return 1 - np.matmul((query_state-obs_center), np.matmul(obs_matrix, (query_state - obs_center)))
+
+    return 1 - np.matmul((query_state-obs_center).T, np.matmul(obs_matrix, (query_state - obs_center)))
 
 
 def check_collisions(future_trajectory, obs_mu_bars_time_hor, obs_Qplus_mat_time_hor,
@@ -42,7 +43,7 @@ def check_collisions(future_trajectory, obs_mu_bars_time_hor, obs_Qplus_mat_time
     collision_flag_list = [True] * time_horizon
     for time_index in range(time_horizon):
         # Query state
-        future_trajectory_state = np.transpose(future_trajectory[:, time_index])
+        future_trajectory_state = np.reshape(np.transpose(future_trajectory[:, time_index]),(robot_state_dimension,1))
         # List of ellipsoidal evaluations for all obstacles
         ellipse_equation_vals = np.zeros((n_obstacles,))
         for obs_index in range(n_obstacles):
@@ -91,7 +92,7 @@ def get_mu_sig_over_time_hor(planning_horizon, num_lin_obs, obs_mu_bars_t,
 
     # In the first time step, simply use the current values
     for j in range(num_lin_obs):
-        obs_mu_bars_plan_hor[j][0] = obs_mu_bars_t[j].T
+        obs_mu_bars_plan_hor[j][0] = obs_mu_bars_t[j]
         obs_sig_bars_plan_hor[j][0] = obs_sig_bars_t[j]
 
     # Iterate over obstacles, remaining time horizon to fill out the \bar{mu}[t] and \bar{sig}[t] over the time
@@ -137,7 +138,7 @@ def get_mu_sig_theta_over_time_hor(planning_horizon, num_nonlin_obs, obs_mu_bars
 
     # In the first time step, simply use the current values
     for j in range(num_nonlin_obs):
-        obs_mu_bars_plan_hor[j][0] = obs_mu_bars_t[j].T
+        obs_mu_bars_plan_hor[j][0] = obs_mu_bars_t[j]
         obs_sig_bars_plan_hor[j][0] = obs_sig_bars_t[j]
         obs_theta_plan_hor[j][0] = obs_theta_t[j]
 
@@ -219,13 +220,13 @@ def get_Qplus_mats_over_time_hor(planning_horizon, num_obs, obs_mu_bars_plan_hor
         r_j = obs_rad_vector[j]
         for t in range(planning_horizon):
             Q_cur = obs_Q_mat_plan_hor[j][t]
-            rob_sta_cur = robot_initial_trajectory_state_x_time[:, t]
+            rob_sta_cur = np.reshape(robot_initial_trajectory_state_x_time[:, t],(rob_state_dim,1))
             mu_cur = obs_mu_bars_plan_hor[j][t]
             l0_bar = mu_cur - rob_sta_cur
             sqrt_term = np.sqrt(np.dot(np.transpose(l0_bar),np.dot(Q_cur,l0_bar)))
             l0_norm = LA.norm(l0_bar)
-            obs_Qplus_mat_time_hor[j][t] = (sqrt_term + r_j*l0_norm)*\
-                (Q_cur/sqrt_term + r_j/l0_norm*np.eye(rob_state_dim))
+            obs_Qplus_mat_time_hor[j][t] = np.linalg.inv((sqrt_term + r_j*l0_norm)*\
+                (Q_cur/sqrt_term + r_j/l0_norm*np.eye(rob_state_dim)))
 
     return obs_Qplus_mat_time_hor
 
