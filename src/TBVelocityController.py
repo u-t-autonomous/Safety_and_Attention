@@ -118,14 +118,14 @@ class TBVelocityController:
             # print("Angle to goal: {:.5f},   Yaw: {:.5f},   Angle error: {:.5f}".format(angle_to_goal, self.yaw, angle_error))
             print("error x: {:.5f}, error y: {:.5f} error theta: {:.5f}".format(goal.x - self.x,goal.y - self.y, angle_error))
             distance_error = np.sqrt((goal.x - self.x)**2 + (goal.y - self.y)**2)
-            angle_error = (correctAngle(np.arctan2(goal.y - self.y, goal.x - self.x) - correctAngle(self.yaw)) + previous_angle_error)/2
+            angle_error = correctAngle(np.arctan2(goal.y - self.y, goal.x - self.x) - correctAngle(self.yaw))# + previous_angle_error)/2
             total_distance_error+=(distance_error+previous_distance_error)/2
             total_angle_error+=(angle_error+previous_angle_error)/2
 
             self.vel_cmd.angular.z = min_mag((kp_ang*angle_error+ki_ang*total_angle_error+kd_ang*(angle_error - previous_angle_error)), max_ang_vel)
-            self.vel_cmd.linear.x = np.minimum((kp_lin*distance_error+ki_lin*total_distance_error+kd_lin*(distance_error - previous_distance_error)), max_vel)*(np.fabs(np.pi-angle_error)/np.pi)**.125
+            self.vel_cmd.linear.x = np.minimum((kp_lin*distance_error+ki_lin*total_distance_error+kd_lin*(distance_error - previous_distance_error)), max_vel*(np.fabs(np.pi-angle_error)/np.pi)**.5)
 
-            print("ang cmd: {:.5f}, lin cmd: {:.5f}".format(min_mag((kp_ang*angle_error+ki_ang*total_angle_error+kd_ang*(angle_error - previous_angle_error)), max_ang_vel),np.minimum((kp_lin*distance_error+ki_lin*total_distance_error+kd_lin*(distance_error - previous_distance_error)), max_vel)*(np.fabs(np.pi-angle_error)/np.pi)**.125))
+            print("ang cmd: {:.5f}, lin cmd: {:.5f}".format(min_mag((kp_ang*angle_error+ki_ang*total_angle_error+kd_ang*(angle_error - previous_angle_error)), max_ang_vel),np.minimum((kp_lin*distance_error+ki_lin*total_distance_error+kd_lin*(distance_error - previous_distance_error)), max_vel*(np.fabs(np.pi-angle_error)/np.pi)**.5)))
 
             previous_distance_error = distance_error
             previous_angle_error = angle_error

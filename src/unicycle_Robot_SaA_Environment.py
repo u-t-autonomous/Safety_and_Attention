@@ -26,16 +26,12 @@ from linear_dynamics_auxilliary_functions import \
 from unicycle_dc_motion_planning_ecos import \
     (ecos_unicycle_shared_cons, solve_obs_free_ecos_unicycle,
      stack_params_for_ecos, dc_motion_planning_call_ecos_unicycle)
-<<<<<<< Updated upstream
-from ecosqp_file import ecosqp
-=======
 
 # For solving MPC problems
 import casadi as csi
 import ecos
 import osqp
 from scipy.sparse import csc_matrix as csc
->>>>>>> Stashed changes
 
 # Mathematic functions
 from math import atan2
@@ -98,11 +94,7 @@ class RobotSaAEnvironment:
         self.heading_angle = rob_heading_ang
         self.best_gamma_ind = None
         self.solve_times = []
-<<<<<<< Updated upstream
 
-=======
-    
->>>>>>> Stashed changes
         # Plot the initial map
         safe_set_polygon = Polygon(np.array([[-self.rob_state_x_max, -self.rob_state_y_max],
             [self.rob_state_x_max, -self.rob_state_y_max],[self.rob_state_x_max, self.rob_state_y_max],
@@ -346,8 +338,10 @@ class RobotSaAEnvironment:
         """
 
         np.random.seed(0)
-<<<<<<< Updated upstream
 
+
+        '''
+        JUST INCASE MIKE NEEDS IT. ARTIFACT OF MERGE CONFLICT. DELETE IF NOT NEEDED
         # Set up optimization problem to run in ECOS...
 
         # Compute matrix needed in setting up problem
@@ -369,14 +363,13 @@ class RobotSaAEnvironment:
                 self.rob_state_x_max,self.rob_state_y_max,self.rob_max_velocity,target_tile_ecos)
 
         # Propagate the linear obstacles over the planning horizon
+        '''
 
-=======
     
         #
         # Start by propagating the linear obstacles over the planning horizon
         #
-     
->>>>>>> Stashed changes
+
         # First, propagate one time step in the future
         linear_obs_mu_bars_t, linear_obs_sig_bars_t = \
             propagate_linear_obstacles(self.num_lin_obs, self.lin_obs_list)
@@ -391,19 +384,12 @@ class RobotSaAEnvironment:
         # sliced at the level corresponding to the parameter beta
         linear_obs_Q_mat_time_hor = get_Q_mats_over_time_hor(self.planning_horizon,
             self.num_lin_obs, self.beta, self.lin_obs_list, linear_obs_sig_bars_time_hor)
-<<<<<<< Updated upstream
-
-        # Now, propagate the nonlinear obstacles over the planning
-        # horizon (assume that the turning rate is fixed)
-
-=======
-    
+  
         #
         # Now, propagate the nonlinear obstacles over the planning
         # horizon (assume that the turning rate is fixed)
         #
     
->>>>>>> Stashed changes
         # First, propagate one time step in the future
         nonlinear_obs_mu_bars_t, nonlinear_obs_theta_t, nonlinear_obs_sig_bars_t = \
             propagate_nonlinear_obstacles(self.num_nonlin_obs, self.sampling_time,
@@ -421,10 +407,13 @@ class RobotSaAEnvironment:
         nonlinear_obs_Q_mat_time_hor = get_Q_mats_over_time_hor(
             self.planning_horizon, self.num_nonlin_obs, self.beta,
             self.nonlin_obs_list, nonlinear_obs_sig_bars_time_hor)
-
+   
+        #
         # Concatenate the linear and nonlinear obstacle ellipsoids. From here on out,
         # they are functionally the same. For now, assume that we will always have at
         # least one linear obstacle.
+        #
+
         if self.num_nonlin_obs != 0:
             obs_Q_mat_time_hor = np.vstack(
                 (linear_obs_Q_mat_time_hor, nonlinear_obs_Q_mat_time_hor))
@@ -484,18 +473,17 @@ class RobotSaAEnvironment:
         #     pool.map(solve_motion_planning_prob,iterable=arguments)
         
         sol_tic = time.time()
-<<<<<<< Updated upstream
-        outputs = pool.map(solve_motion_planning_prob, iterable=arguments)
-=======
         
         # Construct the discount factor array:
         discount_factors = np.zeros((self.planning_horizon,self.num_obs))
         if self.most_rel_obs_ind is not None:
             discount_factors[:,self.most_rel_obs_ind] = \
-            np.array([self.discount_weight*self.discount_factor**t_step for t_step in range(self.planning_horizon)])
+
+                np.array([self.discount_weight*self.discount_factor**t_step for t_step in range(self.planning_horizon)])
         discount_factors = np.reshape(discount_factors.T,(self.planning_horizon*self.num_obs,1))
 
-        # Solve the inner MPC function
+        # Solve the underlying motion planning problem
+
         robot_RHC_trajectory, robot_input_sequence,robot_heading_angle_sequence, robot_turning_rate_sequence,\
             obs_func_val,obs_cons_dual_variables,obs_Qplus_mat_time_hor = solve_mpc(self.rob_pos,self.heading_angle,self.target_state,\
                 self.rob_state_dim,self.rob_input_dim,self.num_obs,obs_rad_vector,obs_mu_bars_time_hor,\
@@ -513,12 +501,11 @@ class RobotSaAEnvironment:
                 self.safely_mpc_projection_solver,\
                 discount_factors)
         
->>>>>>> Stashed changes
         sol_toc = time.time()
 
         self.solve_times.append(sol_toc-sol_tic)
 
-<<<<<<< Updated upstream
+        '''
         # Extract the results of the parallel processes
         rob_motion_plans_each_gamma = [output[0] for output in outputs]
         rob_input_sequence_each_gamma = [output[1] for output in outputs]
@@ -535,12 +522,13 @@ class RobotSaAEnvironment:
         # objective function observed
         best_gamma_ind = int(np.nanargmin(rob_obs_func_val_each_gamma))
         robot_RHC_trajectory = rob_motion_plans_each_gamma[best_gamma_ind]
-=======
+        '''
+
         print('double check')
         print(robot_RHC_trajectory)
 
         # Reshape the output trajectory to a more convenient form
->>>>>>> Stashed changes
+
         robot_RHC_trajectory_state_x_time = np.reshape(
             robot_RHC_trajectory, (self.planning_horizon, self.rob_state_dim)).T
         robot_input_sequence = rob_input_sequence_each_gamma[best_gamma_ind]
@@ -677,7 +665,7 @@ class RobotSaAEnvironment:
             all_obstacle_ell_coll[t_step].remove()
         nominal_trajectory_plot.remove()
 
-<<<<<<< Updated upstream
+        '''
         return robot_RHC_trajectory_state_x_time, best_rh_sequence, best_gamma_ind
 
     # def solve_motion_planning_prob(self,gamma,target_tile_ecos,obs_mu_bars_time_hor,
@@ -825,7 +813,7 @@ class RobotSaAEnvironment:
     #
     #     return robot_RHC_trajectory,robot_input_sequence,obs_func_val,\
     #        obs_cons_dual_variables,obs_Qplus_mat_time_hor
-=======
+        '''
 
         return robot_RHC_trajectory_state_x_time, robot_heading_angle_sequence, robot_input_sequence, robot_turning_rate_sequence
         
@@ -923,7 +911,7 @@ class RobotSaAEnvironment:
                 constraints_dyn_upper_bounds_nl += [0.0]
 
             # Append the lower and upper bounds for each of the variables at the current time step
-                
+
             # Position components
             variable_lower_bounds_state_vars_nl += [-self.rob_state_x_max,-self.rob_state_y_max]
             variable_upper_bounds_state_vars_nl += [self.rob_state_x_max,self.rob_state_y_max]
@@ -995,7 +983,9 @@ class RobotSaAEnvironment:
         self.safely_mpc_init_guess_solver = csi.nlpsol('solver','ipopt',safely_mpc_init_guess,\
             # {"jit": True, "compiler": "shell", "jit_options": jit_options,'print_time':False,'verbose':False,\
             #  'ipopt':{'print_level':0}})
-            {'print_time':False,'verbose':False,'ipopt':{'print_level':4}})
+
+            {'print_time':False,'verbose':False,'ipopt':{'print_level':0}})
+
 
 
         # Construct the Safely MPC problem
@@ -1011,7 +1001,9 @@ class RobotSaAEnvironment:
         self.safely_solver_ipopt = csi.nlpsol('solver','ipopt',safely_mpc,\
             # {"jit": True, "compiler": "shell", "jit_options": jit_options,'print_time':False,'verbose':False,\
             #  'ipopt':{'print_level':0}})
-            {'print_time':False,'verbose':False,'ipopt':{'print_level':4}})
+
+            {'print_time':False,'verbose':False,'ipopt':{'print_level':0}})
+
 
 
         #
@@ -1162,9 +1154,11 @@ class RobotSaAEnvironment:
         self.safely_mpc_projection_solver = csi.nlpsol('solver','sqpmethod',safely_mpc_projection,\
             {'max_iter':10,'print_time':False,'print_header':False,'verbose':False,'print_status':False,'print_iteration':False,\
             'qpsol':'osqp','convexify_strategy':'regularize','error_on_fail':False,'qpsol_options':{'osqp':{'verbose':False}}})
+        '''
         self.safely_mpc_projection_solver = csi.nlpsol('solver','ipopt',safely_mpc_projection,\
             {'print_time':False,'verbose':False,'ipopt':{'print_level':4}})
->>>>>>> Stashed changes
+        '''
+
 
 class LinearObstacle:
 
@@ -1345,7 +1339,7 @@ class NonlinearObstacle:
 # --------------------------------------- BEGIN FUNCTION DEFINITIONS --------------------------------------------- #
 
 
-<<<<<<< Updated upstream
+'''
 def unpack(func):
     @wraps(func)
     def wrapper(arg_tuple):
@@ -1407,11 +1401,13 @@ def inner_motion_planning_prob(B_mat_t_hor_cur_gamma,target_tile_ecos,
         solve_obs_free_ecos_unicycle(Z, H, current_state, rob_state_dim,
                                      rob_input_dim, planning_horizon, A_ecosqp,
                                      b_ecosqp, H_ecosqp, f_ecosqp)
-=======
+'''
 def solve_mpc(current_state,current_heading_angle,goal_state,rob_state_dim,rob_input_dim,n_obstacles,\
     obs_rad_vector,obs_mu_bars_time_hor,obs_Q_mat_time_hor,planning_horizon,all_dv_lower_bounds_nl,all_dv_upper_bounds_nl,\
     constraints_dyn_lower_bounds_nl,constraints_dyn_upper_bounds_nl,all_constraints_lower_bounds_nl,\
-    all_constraints_upper_bounds_nl,all_constraints_lower_bounds_proj_nl,all_constraints_upper_bounds_proj_nl,\
+
+    all_constraints_upper_bounds_nl,all_constraints_lower_bounds_proj_nl,all_constraints_upper_bounds_proj_nl, \
+
     safely_mpc_init_guess_solver,safely_solver_ipopt,safely_mpc_projection_solver,discount_factors):
     """
     
@@ -1475,20 +1471,22 @@ def solve_mpc(current_state,current_heading_angle,goal_state,rob_state_dim,rob_i
     #
     params_act_init = csi.vertcat(obs_mu_bars_stacked,obs_Q_mat_stacked,current_state,current_heading_angle,goal_state,discount_factors)
     sol_init_mpc = safely_mpc_init_guess_solver(
+
                 lbx = all_dv_lower_bounds_nl,
                 ubx = all_dv_upper_bounds_nl,
                 lbg = constraints_dyn_lower_bounds_nl,
                 ubg = constraints_dyn_upper_bounds_nl,
                 p = params_act_init,
                 x0 = init_guess)
-    
+
     # Extract parameters from the solution of the initial problem
     obs_free_traj_func_val = float(sol_init_mpc['f'])
     robot_RHC_trajectory_initial_solution = np.array(sol_init_mpc['x'])[0:2*planning_horizon]
->>>>>>> Stashed changes
+
     robot_initial_trajectory_state_x_time = np.reshape(
         robot_RHC_trajectory_initial_solution, (planning_horizon, rob_state_dim)).T
 
+'''
     ####################################################################
     # From the nominal trajectory, compute the Q+ matrices (outer      #
     # approximation to Minkowski sum of original Q and the rigid body  #
@@ -1498,7 +1496,7 @@ def solve_mpc(current_state,current_heading_angle,goal_state,rob_state_dim,rob_i
     # position of the obstacle.                                        #
     ####################################################################
     obs_Qplus_mat_time_hor = get_Qplus_mats_over_time_hor(planning_horizon, n_obstacles,
-<<<<<<< Updated upstream
+
                               obs_mu_bars_time_hor, obs_Q_mat_time_hor,
                               robot_initial_trajectory_state_x_time,
                               obs_rad_vector, rob_state_dim)
@@ -1507,7 +1505,18 @@ def solve_mpc(current_state,current_heading_angle,goal_state,rob_state_dim,rob_i
     # STEP 2: Check for collisions between our nominal trajectory #
     # and the obstacle ellipsoidal outer approximations           #
     ###############################################################
-=======
+
+'''
+    #
+    # From the nominal trajectory, compute the Q+ matrices (outer      
+    # approximation to Minkowski sum of original Q and the rigid body  
+    # ball of each obstacle (of radius r_j). The ellipsoidal outer     
+    # approximation is tight in our chosen direction of interest,      
+    # which is the direction defined by the robot position to the mean 
+    # position of the obstacle.                                        
+    #
+    obs_Qplus_mat_time_hor, obs_Qplus_mat_time_hor_inv = get_Qplus_mats_over_time_hor(planning_horizon, n_obstacles,
+
                       obs_mu_bars_time_hor, obs_Q_mat_time_hor,
                       robot_initial_trajectory_state_x_time,
                       obs_rad_vector, rob_state_dim)
@@ -1516,7 +1525,7 @@ def solve_mpc(current_state,current_heading_angle,goal_state,rob_state_dim,rob_i
     # Check for collisions between our nominal trajectory
     # and the obstacle ellipsoidal outer approximations
     #
->>>>>>> Stashed changes
+
     collision_flag_list = check_collisions(robot_initial_trajectory_state_x_time,
                                            obs_mu_bars_time_hor, obs_Qplus_mat_time_hor,
                                            n_obstacles)
@@ -1524,7 +1533,7 @@ def solve_mpc(current_state,current_heading_angle,goal_state,rob_state_dim,rob_i
     # If there were collisions, use DC procedure to adjust nominal trajectory to prevent them
     if any(collision_flag_list):
 
-<<<<<<< Updated upstream
+'''
         ####################################################################
         # Set up some parameters to feed into the ECOS DC solver function. #
         # Doing so here will help to set up the remaining problem          #
@@ -1550,16 +1559,16 @@ def solve_mpc(current_state,current_heading_angle,goal_state,rob_state_dim,rob_i
         # Check to see if our updated trajectory has  #
         # avoided obstacle collisions                 #
         ###############################################
-=======
+'''
         #
         # Use sequence of ipopt- and sqp-based approaches to obtain the collision-free
         # trajectory
         #
         
-        # Stack the obstacle Q+ matrices to put in parameter vector
+        # Stack the obstacle Q+ matrices to put in parameter vector. NOTE THESE ARE THE INVERSES!
         obs_Qplus_mat_time_stacked = []
         for obs_ind in range(n_obstacles):
-            obs_Qplus_mat_time_stacked.append(np.vstack(obs_Qplus_mat_time_hor[obs_ind]))
+            obs_Qplus_mat_time_stacked.append(np.vstack(obs_Qplus_mat_time_hor_inv[obs_ind]))
         obs_Qplus_mat_stacked = np.vstack(obs_Qplus_mat_time_stacked)
         print(obs_Qplus_mat_stacked)
         obs_Qplus_mat_stacked = np.reshape( obs_Qplus_mat_stacked.T,((rob_state_dim**2)*n_obstacles*planning_horizon,1) )
@@ -1568,12 +1577,12 @@ def solve_mpc(current_state,current_heading_angle,goal_state,rob_state_dim,rob_i
             current_state,current_heading_angle,goal_state,discount_factors))
         # Using ipopt to get guess
         sol_ipopt = safely_solver_ipopt(
-            lbx=all_dv_lower_bounds_nl,
-            ubx=all_dv_upper_bounds_nl,
-            lbg=all_constraints_lower_bounds_nl,
-            ubg=all_constraints_upper_bounds_nl,
-            x0 = np.array(sol_init_mpc['x']),
-            p=params_act_nonlinear)
+                    lbx=all_dv_lower_bounds_nl,
+                    ubx=all_dv_upper_bounds_nl,
+                    lbg=all_constraints_lower_bounds_nl,
+                    ubg=all_constraints_upper_bounds_nl,
+                    x0 = np.array(sol_init_mpc['x']),
+                    p=params_act_nonlinear)
             
         # Project this trajectory onto each of the obstacles, use these constraints: preserves duality-based argument.
         
@@ -1598,7 +1607,9 @@ def solve_mpc(current_state,current_heading_angle,goal_state,rob_state_dim,rob_i
             for t_step in range(planning_horizon):
 
                 # Extract the current system parameters
-                ell_cov_cur = obs_Qplus_mat_time_hor[obs_ind][t_step]
+
+                ell_cov_cur = obs_Qplus_mat_time_hor_inv[obs_ind][t_step]
+
                 ell_cen_cur = obs_mu_bars_time_hor[obs_ind][t_step]
                 ag_traj_cur = nominal_trajectory[rob_state_dim*t_step:rob_state_dim*(t_step+1)]
 
@@ -1659,11 +1670,14 @@ def solve_mpc(current_state,current_heading_angle,goal_state,rob_state_dim,rob_i
             projection_pts = np.array(sol['x'][0:2*planning_horizon])
             projection_pts_x_vals = projection_pts[::2]
             projection_pts_y_vals = projection_pts[1::2]
+
             # For each time step, append the current A and b linear inequality components
             for t_step in range(planning_horizon):
                 proj_pt_cur = np.array([[projection_pts_x_vals[t_step]],[projection_pts_y_vals[t_step]]])
                 ell_mean_pos_cur = obs_mu_bars_time_hor[obs_ind][t_step]
-                A_cur = -(proj_pt_cur - ell_mean_pos_cur).T @ obs_Qplus_mat_time_hor[obs_ind][t_step]
+
+                A_cur = -(proj_pt_cur - ell_mean_pos_cur).T @ obs_Qplus_mat_time_hor_inv[obs_ind][t_step]
+
                 b_cur = A_cur @ proj_pt_cur
                 hyperplane_A.append(A_cur)
                 hyperplane_b.append(b_cur)
@@ -1677,12 +1691,12 @@ def solve_mpc(current_state,current_heading_angle,goal_state,rob_state_dim,rob_i
         params_act_projection_mpc = np.vstack((obs_mu_bars_stacked,obs_Qplus_mat_stacked,hyperplane_A_stacked,\
             hyperplane_b,current_state,current_heading_angle,goal_state,discount_factors))
         sol = safely_mpc_projection_solver(
-            lbx=all_dv_lower_bounds_nl,
-            ubx=all_dv_upper_bounds_nl,
-            lbg=all_constraints_lower_bounds_proj_nl,
-            ubg=all_constraints_upper_bounds_proj_nl,
-            x0 = np.array(sol_ipopt['x']),
-            p=params_act_projection_mpc)
+                lbx=all_dv_lower_bounds_nl,
+                ubx=all_dv_upper_bounds_nl,\
+                lbg=all_constraints_lower_bounds_proj_nl,\
+                ubg=all_constraints_upper_bounds_proj_nl,\
+                x0 = np.array(sol_ipopt['x']),\
+                p=params_act_projection_mpc)
         
         # Dual variables
         dual_variables_hyperplanes = np.array(sol['lam_g'][0:n_obstacles*planning_horizon])
@@ -1696,7 +1710,7 @@ def solve_mpc(current_state,current_heading_angle,goal_state,rob_state_dim,rob_i
         # Check to see if our updated trajectory has
         # avoided obstacle collisions                
         #
->>>>>>> Stashed changes
+
         robot_RHC_trajectory_state_x_time = np.reshape(
             robot_RHC_trajectory, (planning_horizon, rob_state_dim)).T
 

@@ -37,16 +37,12 @@ from unicycle_dc_motion_planning_ecos import \
     (ecos_unicycle_shared_cons, solve_obs_free_ecos_unicycle,
      stack_params_for_ecos, dc_motion_planning_call_ecos_unicycle)
 from unicycle_Robot_SaA_Environment import LinearObstacle, NonlinearObstacle, RobotSaAEnvironment
-<<<<<<< Updated upstream
-from ecosqp_file import ecosqp
-=======
 
 # For solving MPC problem
 import casadi as csi
 import osqp
 import ecos
 from scipy.sparse import csc_matrix as csc
->>>>>>> Stashed changes
 
 # FOR MAPPING USING THE VICON AND TURTLEBOT CAMERA SYSTEM
 from detect_colors import object_map
@@ -328,6 +324,7 @@ if __name__ == '__main__':
     # Initial position of the robotic agent in the environment
     rob_init_pos = np.array([[-2.5],[-0.75]])
 
+
     # The size of the circle (assumed to be in meters?) for which the robotic
     # agent can make an observation about an obstacle if the obstacle is within
     # that position.
@@ -350,29 +347,28 @@ if __name__ == '__main__':
     discount_factor = 0.7
     discount_weight = 15
 
+    # Reach goal vs turn towards obstacle
+    discount_factor = 0.7
+    discount_weight = 15
+
     # Now that we have all of the ingredients, create the robot safety and
     # attention environment
     robotic_agent_environ = RobotSaAEnvironment(goal_state, goal_tolerance, beta,
                                                 planning_horizon, rob_init_pos, rob_A_mat,
                                                 obs_field_of_view_rad, obs_interval, rob_state_x_max,
                                                 rob_state_y_max, sampling_time, rob_obs_strat,
-<<<<<<< Updated upstream
-                                                max_heading_view, rob_max_velocity, rob_max_turn_rate,
-                                                rob_agg_turn_rate, most_rel_obs_ind, num_turning_rates,
-                                                turning_rates_array, rob_heading_ang)
-=======
+
                                                 max_heading_view, rob_min_velocity, rob_max_velocity,
                                                 rob_max_turn_rate, rob_agg_turn_rate, most_rel_obs_ind,
                                                 num_turning_rates, turning_rates_array, rob_heading_ang,
                                                 discount_factor, discount_weight)
->>>>>>> Stashed changes
 
     # Add the first obstacle
     # obs_1_init = np.array([-1.4, -0.3])
     obs_1_init = np.array([[-1.75], [0.25]])
     obs_1_A_matrix = np.eye(2)
     obs_1_F_matrix = np.eye(2)
-    obs_1_mean_vec = np.array([[0.20],[0.0]])
+    obs_1_mean_vec = np.array([[0.20], [0.0]])
     obs_1_cov_mat = np.array([[0.008, 0.001], [0.001, 0.008]])
     obs_1_radius = 0.25
     robotic_agent_environ.add_linear_obstacle(obs_1_init, obs_1_A_matrix,
@@ -383,7 +379,7 @@ if __name__ == '__main__':
     obs_2_init = np.array([[1.2], [1.8]])
     obs_2_A_matrix = np.eye(2)
     obs_2_F_matrix = np.eye(2)
-    obs_2_mean_vec = np.array([[0.05],[-0.1]])
+    obs_2_mean_vec = np.array([[0.05], [-0.1]])
     obs_2_cov_mat = np.array([[0.004, 0.0015], [0.0015, 0.005]])
     obs_2_radius = 0.25
     robotic_agent_environ.add_linear_obstacle(obs_2_init, obs_2_A_matrix,
@@ -394,11 +390,13 @@ if __name__ == '__main__':
     obs_3_init = np.array([[2.25], [-2.0]])
     obs_3_A_matrix = np.eye(2)
     obs_3_F_matrix = np.eye(2)
-    obs_3_mean_vec = np.array([[0.025],[0.15]])
+    obs_3_mean_vec = np.array([[0.025], [0.15]])
     obs_3_cov_mat = np.array([[0.005, 0.0015], [0.0015, 0.008]])
     obs_3_radius = 0.25
     robotic_agent_environ.add_linear_obstacle(obs_3_init, obs_3_A_matrix,
                                               obs_3_F_matrix, obs_3_mean_vec, obs_3_cov_mat, obs_3_radius)
+    # Set up the bounds on the variables
+    robotic_agent_environ.construct_mpc_solvers_and_get_bounds()
 
     # Construct the solvers and get the bounds.
     robotic_agent_environ.construct_mpc_solvers_and_get_bounds()

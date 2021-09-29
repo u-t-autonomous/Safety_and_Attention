@@ -200,7 +200,7 @@ if __name__ == '__main__':
     obs_3_cov_mat = np.array([[0.005, 0.0015], [0.0015, 0.008]])
 
     # Generate a set of waypoints for the first obstacle to follow
-    num_steps = 200
+    num_steps = 300
     traj = []
     traj_np = []
     for step in range(0,num_steps):
