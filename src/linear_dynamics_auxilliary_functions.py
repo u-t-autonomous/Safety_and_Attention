@@ -214,6 +214,7 @@ def get_Qplus_mats_over_time_hor(planning_horizon, num_obs, obs_mu_bars_plan_hor
     """
     # Initialize the Q+ matrices
     obs_Qplus_mat_time_hor = [[[] for i in range(planning_horizon)] for j in range(num_obs)]
+    obs_Qplus_mat_time_hor_inv = [[[] for i in range(planning_horizon)] for j in range(num_obs)]
 
     # Iterate over each obstacle over the time horizon to determine the corresponding Qplus matrix
     for j in range(num_obs):
@@ -225,10 +226,11 @@ def get_Qplus_mats_over_time_hor(planning_horizon, num_obs, obs_mu_bars_plan_hor
             l0_bar = mu_cur - rob_sta_cur
             sqrt_term = np.sqrt(np.dot(np.transpose(l0_bar),np.dot(Q_cur,l0_bar)))
             l0_norm = LA.norm(l0_bar)
-            obs_Qplus_mat_time_hor[j][t] = np.linalg.inv((sqrt_term + r_j*l0_norm)*\
-                (Q_cur/sqrt_term + r_j/l0_norm*np.eye(rob_state_dim)))
+            obs_Qplus_mat_time_hor[j][t] = (sqrt_term + r_j*l0_norm)*\
+                (Q_cur/sqrt_term + r_j/l0_norm*np.eye(rob_state_dim))
+            obs_Qplus_mat_time_hor_inv[j][t] = np.linalg.inv(obs_Qplus_mat_time_hor[j][t])
 
-    return obs_Qplus_mat_time_hor
+    return obs_Qplus_mat_time_hor, obs_Qplus_mat_time_hor_inv
 
 
 def propagate_linear_obstacles(num_lin_obs, lin_obs_list):

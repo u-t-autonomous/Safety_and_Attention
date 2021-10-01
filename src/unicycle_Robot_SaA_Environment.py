@@ -399,7 +399,7 @@ class RobotSaAEnvironment:
         
         # Construct the discount factor array:
         discount_factors = np.zeros((self.planning_horizon,self.num_obs))
-        if self.most_rel_obs_ind is not None:
+        if (self.most_rel_obs_ind is not None) and (not (self.most_rel_obs_ind in self.observable_obstacles_list)):
             discount_factors[:,self.most_rel_obs_ind] = \
             np.array([self.discount_weight*self.discount_factor**t_step for t_step in range(self.planning_horizon)])
         discount_factors = np.reshape(discount_factors.T,(self.planning_horizon*self.num_obs,1))
@@ -425,9 +425,6 @@ class RobotSaAEnvironment:
         sol_toc = time.time()
 
         self.solve_times.append(sol_toc-sol_tic)
-
-        print('double check')
-        print(robot_RHC_trajectory)
 
         # Reshape the output trajectory to a more convenient form
         robot_RHC_trajectory_state_x_time = np.reshape(
@@ -730,7 +727,7 @@ class RobotSaAEnvironment:
         self.safely_mpc_init_guess_solver = csi.nlpsol('solver','ipopt',safely_mpc_init_guess,\
             # {"jit": True, "compiler": "shell", "jit_options": jit_options,'print_time':False,'verbose':False,\
             #  'ipopt':{'print_level':0}})
-            {'print_time':False,'verbose':False,'ipopt':{'print_level':4}})
+            {'print_time':False,'verbose':False,'ipopt':{'print_level':0}})
 
 
         # Construct the Safely MPC problem
@@ -746,7 +743,7 @@ class RobotSaAEnvironment:
         self.safely_solver_ipopt = csi.nlpsol('solver','ipopt',safely_mpc,\
             # {"jit": True, "compiler": "shell", "jit_options": jit_options,'print_time':False,'verbose':False,\
             #  'ipopt':{'print_level':0}})
-            {'print_time':False,'verbose':False,'ipopt':{'print_level':4}})
+            {'print_time':False,'verbose':False,'ipopt':{'print_level':0}})
 
 
         #
@@ -894,11 +891,13 @@ class RobotSaAEnvironment:
         # Set up the projection-based MPC problem
         all_parameters = csi.vertcat(obs_pos_mean_stacked,obs_pos_cov_stacked,obs_A_stacked,obs_b_stacked,x_i,th_i,x_g,gamma_obs_t_stacked)
         safely_mpc_projection = {'x':all_decision_variables_proj_nl,'p':all_parameters,'f':objective_function_proj_nl,'g':all_constraints_proj_nl}
-        self.safely_mpc_projection_solver = csi.nlpsol('solver','sqpmethod',safely_mpc_projection,\
-            {'max_iter':10,'print_time':False,'print_header':False,'verbose':False,'print_status':False,'print_iteration':False,\
-            'qpsol':'osqp','convexify_strategy':'regularize','error_on_fail':False,'qpsol_options':{'osqp':{'verbose':False}}})
-        self.safely_mpc_projection_solver = csi.nlpsol('solver','ipopt',safely_mpc_projection,\
-            {'print_time':False,'verbose':False,'ipopt':{'print_level':4}})
+        # self.safely_mpc_projection_solver = csi.nlpsol('solver','sqpmethod',safely_mpc_projection,\
+        #     {'max_iter':10,'print_time':False,'print_header':False,'verbose':False,'print_status':False,'print_iteration':False,\
+        #     'qpsol':'osqp','convexify_strategy':'regularize','error_on_fail':False,'qpsol_options':{'osqp':{'verbose':False}}})
+        self.safely_mpc_projection_solver = csi.nlpsol('solver','blocksqp',safely_mpc_projection,\
+            {'max_iter':1,'qpsol':'qr','print_time':False,'print_header':False,'verbose':False,'conv_strategy':0})
+        # self.safely_mpc_projection_solver = csi.nlpsol('solver','ipopt',safely_mpc_projection,\
+        #     {'print_time':False,'verbose':False,'ipopt':{'print_level':4}})
 
 class LinearObstacle:
 
@@ -1169,7 +1168,7 @@ def solve_mpc(current_state,current_heading_angle,goal_state,rob_state_dim,rob_i
     # which is the direction defined by the robot position to the mean 
     # position of the obstacle.                                        
     #
-    obs_Qplus_mat_time_hor = get_Qplus_mats_over_time_hor(planning_horizon, n_obstacles,
+    obs_Qplus_mat_time_hor, obs_Qplus_mat_time_hor_inv = get_Qplus_mats_over_time_hor(planning_horizon, n_obstacles,
                       obs_mu_bars_time_hor, obs_Q_mat_time_hor,
                       robot_initial_trajectory_state_x_time,
                       obs_rad_vector, rob_state_dim)
@@ -1191,11 +1190,11 @@ def solve_mpc(current_state,current_heading_angle,goal_state,rob_state_dim,rob_i
         #
         
         # Stack the obstacle Q+ matrices to put in parameter vector
+        # NOTE THAT WE USE THE INVERSES OF THE QPLUS MATRICES!
         obs_Qplus_mat_time_stacked = []
         for obs_ind in range(n_obstacles):
-            obs_Qplus_mat_time_stacked.append(np.vstack(obs_Qplus_mat_time_hor[obs_ind]))
+            obs_Qplus_mat_time_stacked.append(np.vstack(obs_Qplus_mat_time_hor_inv[obs_ind]))
         obs_Qplus_mat_stacked = np.vstack(obs_Qplus_mat_time_stacked)
-        print(obs_Qplus_mat_stacked)
         obs_Qplus_mat_stacked = np.reshape( obs_Qplus_mat_stacked.T,((rob_state_dim**2)*n_obstacles*planning_horizon,1) )
 
         params_act_nonlinear = np.vstack((obs_mu_bars_stacked,obs_Qplus_mat_stacked,\
@@ -1306,8 +1305,7 @@ def solve_mpc(current_state,current_heading_angle,goal_state,rob_state_dim,rob_i
         hyperplane_A_stacked = np.reshape(hyperplane_A.T,(2*planning_horizon*n_obstacles,1))
         hyperplane_b = np.vstack(hyperplane_b)
 
-        # Use SQP-based approach to get meaningful result
-        print(np.array(sol_ipopt['x'])[0:2*planning_horizon])
+        # Use SQP-based approach tocheck_collisions get meaningful result
         params_act_projection_mpc = np.vstack((obs_mu_bars_stacked,obs_Qplus_mat_stacked,hyperplane_A_stacked,\
             hyperplane_b,current_state,current_heading_angle,goal_state,discount_factors))
         sol = safely_mpc_projection_solver(
@@ -1338,12 +1336,17 @@ def solve_mpc(current_state,current_heading_angle,goal_state,rob_state_dim,rob_i
             obs_Qplus_mat_time_hor, n_obstacles)
         if any(collision_flag_list):
             # raise RuntimeError('\n\nWARNING!!! Collision not resolved!\n\n')
-            robot_RHC_trajectory = None
-            robot_input_sequence = None
-            robot_heading_angle_sequence = None
-            robot_turning_rate_sequence = None
-            obs_cons_dual_variables = None
-            obs_func_val = np.nan
+            # robot_RHC_trajectory = None
+            # robot_input_sequence = None
+            # robot_heading_angle_sequence = None
+            # robot_turning_rate_sequence = None
+            # obs_cons_dual_variables = None
+            # obs_func_val = np.nan
+
+
+            # Store information about dual variables at current time step
+            obs_cons_dual_variables = np.asarray(dual_variables_hyperplanes)
+
         else:
         
             # Use the resolved solution

@@ -314,7 +314,7 @@ if __name__ == '__main__':
     beta = 0.01
 
     # Number of time steps into the future that the robotic agent must plan
-    planning_horizon = 30
+    planning_horizon = 20
 
     # Initial position of the robotic agent in the environment
     rob_init_pos = np.array([[-2.5],[-0.75]])
@@ -335,11 +335,11 @@ if __name__ == '__main__':
 
     # Time between subsequent time steps "k" and "k+1" (again, not really a physical
     # parameter, will probably need to play around with this value)
-    sampling_time = 0.25
+    sampling_time = 0.5
 
     # Parameters weighting how to weight turning towards obstacle vs reaching goal state
     discount_factor = 0.7
-    discount_weight = 15
+    discount_weight = 10
 
     # Now that we have all of the ingredients, create the robot safety and
     # attention environment
@@ -354,10 +354,10 @@ if __name__ == '__main__':
 
     # Add the first obstacle
     # obs_1_init = np.array([-1.4, -0.3])
-    obs_1_init = np.array([[-1.75], [0.25]])
+    obs_1_init = np.array([[-0.75], [-2.00]])
     obs_1_A_matrix = np.eye(2)
     obs_1_F_matrix = np.eye(2)
-    obs_1_mean_vec = np.array([[0.20],[0.0]])
+    obs_1_mean_vec = np.array([[0.0],[0.2]])
     obs_1_cov_mat = np.array([[0.008, 0.001], [0.001, 0.008]])
     obs_1_radius = 0.25
     robotic_agent_environ.add_linear_obstacle(obs_1_init, obs_1_A_matrix,
@@ -406,6 +406,7 @@ if __name__ == '__main__':
         tic_sop_1 = time.time()
         robotic_agent_environ.solve_optim_prob_and_update()
         solve_optimization_times.append(time.time() - tic_sop_1)
+        print(time.time() - tic_sop_1)
 
         # Assume that the nominal trajectory also has the heading angle stacked underneath,
         # making the matrix exist in R^((state_dim+1)x(time_horizon))
@@ -459,6 +460,7 @@ if __name__ == '__main__':
             obs_in_view_list.append(1)
         if 'blue' in obs_in_view:
             obs_in_view_list.append(2)
+        robotic_agent_environ.observable_obstacles_list = obs_in_view_list
 
         # Now, update the simulated and actual positions of the robot, obstacles.
         robotic_agent_environ.update_obs_positions_and_plots(obs_act_positions,obs_in_view_list)
