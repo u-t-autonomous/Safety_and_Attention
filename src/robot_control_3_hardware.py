@@ -187,12 +187,22 @@ if __name__ == '__main__':
     robot_name='tb3_3'
     rospy.sleep(1.0)
 
+    # Wait until all other robots are ready
+    rdy = cc.ReadyTool(robot_name)
+    print("*** Robot {} is ready and waiting to start ***".format(int(robot_name[-1])))
+    rdy.set_ready(True)
+    rdy.wait_for_ready()
+    # print("Robot {} made it past Ready Check *".format(int(robot_name[-1]))) # Comment when done testing
+    # sys.exit() # Comment when done testing
+
     # Set the initial point of the robotic agent in the Gazebo world (make sure this
     # is the same as the initial position in the Safety and Attention environment)
-    init_point_3 = Point(2.25, -2.0, None)
+    # init_point_3 = Point(2.25, -2.0, None)
+    init_point_3 = Point(0.0, 0.0, None)
     vel_controller_3.go_to_point(init_point_3)
 
     traj_np = np.load('obstacle_3_trajectory.npy')
+    traj_np = traj_np - np.tile(np.array([[2.25,-2.00]]),(200,1))
 
     # Now, while we have not reached the target point, continue executing the controller
     while not rospy.is_shutdown():
