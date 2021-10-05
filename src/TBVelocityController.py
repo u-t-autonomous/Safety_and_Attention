@@ -88,16 +88,16 @@ class TBVelocityController:
             print("Starting to rotate towards waypoint")
         dist_tol = .05
         ang_tol = np.pi/180
-        max_vel = .175
-        max_ang_vel = np.pi/6
+        max_vel = .12
+        max_ang_vel = np.pi/10
 
         kp_lin = 1
         ki_lin = 0
         kd_lin = .5
 
-        kp_ang = 2.0
+        kp_ang = 1.5
         ki_ang = 0
-        kd_ang = 1.5
+        kd_ang = 1.75
 
         distance_error = np.sqrt((goal.x - self.x)**2 + (goal.y - self.y)**2)
         angle_error = correctAngle(np.arctan2(goal.y - self.y, goal.x - self.x) - correctAngle(self.yaw))
