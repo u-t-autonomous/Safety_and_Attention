@@ -49,13 +49,13 @@ if __name__ == "__main__":
     rospy.sleep(2)
     # rate = rospy.Rate(0.5)
     while not rospy.is_shutdown():
-        # print('TB0 translation is:\n{}'.format(tr.data[0].rotation))
-        # print('TB0 translation is:\n{}'.format(tr.data[0].translation))
-        # print('TB1 translation is:\n{}'.format(tr.data[1].translation))
+        print('TB0 translation is:\n{}'.format(tr.data[0].rotation))
+        print('TB0 translation is:\n{}'.format(tr.data[0].translation))
+        print('TB1 translation is:\n{}'.format(tr.data[1].translation))
         print('TB2 translation is:\n{}'.format(tr.data[2].translation))
-        # print('TB3 translation is:\n{}'.format(tr.data[3].translation))
-        # make_user_wait()
-        # rate.sleep()
+        print('TB3 translation is:\n{}'.format(tr.data[3].translation))
+        make_user_wait()
+        rate.sleep()
 
 
 

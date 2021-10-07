@@ -891,11 +891,11 @@ class RobotSaAEnvironment:
         # Set up the projection-based MPC problem
         all_parameters = csi.vertcat(obs_pos_mean_stacked,obs_pos_cov_stacked,obs_A_stacked,obs_b_stacked,x_i,th_i,x_g,gamma_obs_t_stacked)
         safely_mpc_projection = {'x':all_decision_variables_proj_nl,'p':all_parameters,'f':objective_function_proj_nl,'g':all_constraints_proj_nl}
-        # self.safely_mpc_projection_solver = csi.nlpsol('solver','sqpmethod',safely_mpc_projection,\
-        #     {'max_iter':10,'print_time':False,'print_header':False,'verbose':False,'print_status':False,'print_iteration':False,\
-        #     'qpsol':'osqp','convexify_strategy':'regularize','error_on_fail':False,'qpsol_options':{'osqp':{'verbose':False}}})
-        self.safely_mpc_projection_solver = csi.nlpsol('solver','blocksqp',safely_mpc_projection,\
-            {'max_iter':1,'qpsol':'qr','print_time':False,'print_header':False,'verbose':False,'conv_strategy':0})
+        self.safely_mpc_projection_solver = csi.nlpsol('solver','sqpmethod',safely_mpc_projection,\
+            {'max_iter':10,'print_time':False,'print_header':False,'verbose':False,'print_status':False,'print_iteration':False,\
+            'qpsol':'osqp','convexify_strategy':'regularize','error_on_fail':False,'qpsol_options':{'osqp':{'verbose':False}}})
+        # self.safely_mpc_projection_solver = csi.nlpsol('solver','blocksqp',safely_mpc_projection,\
+        #     {'max_iter':1,'qpsol':'qr','print_time':False,'print_header':False,'verbose':False,'conv_strategy':0})
         # self.safely_mpc_projection_solver = csi.nlpsol('solver','ipopt',safely_mpc_projection,\
         #     {'print_time':False,'verbose':False,'ipopt':{'print_level':4}})
 

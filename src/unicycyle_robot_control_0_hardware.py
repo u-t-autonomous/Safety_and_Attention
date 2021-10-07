@@ -70,8 +70,8 @@ class VelocityController:
         # self.x = msg.pose.pose.position.x
         # self.y = msg.pose.pose.position.y
         # Temporary fix
-        self.x = self.vt.data[0].translation.x - -1.15 - -2.50
-        self.y = self.vt.data[0].translation.y - -0.75
+        self.x = self.vt.data[0].translation.x - (-1.092) - (-2.50)
+        self.y = self.vt.data[0].translation.y - (-1.533) - (-0.75)
         rot_q = msg.pose.pose.orientation
         _, _, self.yaw = euler_from_quaternion([rot_q.x, rot_q.y, rot_q.z, rot_q.w])
 
@@ -258,12 +258,16 @@ if __name__ == '__main__':
     rospy.init_node("robot_control_0_node", anonymous=True)
     wait_for_time()
 
+    vicon_track = Tracker()
+    vicon_offset_x = -1.092
+    vicon_offset_y = -1.533
+
     # Create velocity controllers
     robot_name='tb3_0'
-    vel_controller_0 = VelocityController('/tb3_0/odom', '/tb3_0/cmd_vel')
-    vel_controller_1 = VelocityController('/tb3_1/odom', '/tb3_1/cmd_vel')
-    vel_controller_2 = VelocityController('/tb3_2/odom', '/tb3_2/cmd_vel')
-    vel_controller_3 = VelocityController('/tb3_3/odom', '/tb3_3/cmd_vel')
+    vel_controller_0 = VelocityController('/tb3_0/odom', '/tb3_0/cmd_vel',vicon_track)
+    # vel_controller_1 = VelocityController('/tb3_1/odom', '/tb3_1/cmd_vel')
+    # vel_controller_2 = VelocityController('/tb3_2/odom', '/tb3_2/cmd_vel')
+    # vel_controller_3 = VelocityController('/tb3_3/odom', '/tb3_3/cmd_vel')
     rospy.sleep(1.0)
 
     # Create the obstacle map
@@ -280,9 +284,9 @@ if __name__ == '__main__':
     # Set the initial point of the robotic agent in the Gazebo world (make sure this
     # is the same as the initial position in the Safety and Attention environment
     rob_heading_ang = 0
-    init_point_0 = [Point(-2.5, -0.75, None), rob_heading_ang]   # the list is [Point(x,y,z),heading angle
+    # init_point_0 = [Point(-2.5, -0.75, None), rob_heading_ang]   # the list is [Point(x,y,z),heading angle
                                                                 # (measured counter-clockwise from x-axis)]
-    vel_controller_0.go_to_point(init_point_0)
+    # vel_controller_0.go_to_point(init_point_0)
 
     # Observation strategy of the robot. Either "bin" or "sum" (sum is the preferred choice)
     rob_obs_strat = "sum"
@@ -399,7 +403,7 @@ if __name__ == '__main__':
     rdy = cc.ReadyTool(robot_name)
     print("*** Robot {} is ready and waiting to start ***".format(int(robot_name[-1])))
     rdy.set_ready(True)
-    rdy.wait_for_ready()
+    # rdy.wait_for_ready()
     # print("Robot {} made it past Ready Check *".format(int(robot_name[-1]))) # Comment when done testing
     # sys.exit() # Comment when done testing
 
@@ -430,7 +434,7 @@ if __name__ == '__main__':
         else:  # Must be that the yaw angle is between -pi and -2*pi -> want between 0 and pi
             next_yaw = next_yaw + 2*np.pi
 
-        next_point = Point(float(next_p[0]), float(next_p[1]), None)
+        next_point = Point(float(next_p[0]) - (-2.50), float(next_p[1]) - (-0.75), None)
         next_state = [next_point,next_yaw]
 
         rdy.set_ready(False)
@@ -439,16 +443,16 @@ if __name__ == '__main__':
         travel_to_point_times.append(time.time() - tic_gtp_1)
         rdy.set_ready(True)
         # Wait for the agent and the obstacles to have synchronized to their next state
-        rdy.wait_for_ready()
+        # rdy.wait_for_ready()
         print("Robot {} is moving to the next waypoint *".format(int(robot_name[-1])))
 
         # Query the current position of each obstacle
-        obs_1_x = vel_controller_1.x
-        obs_1_y = vel_controller_1.y
-        obs_2_x = vel_controller_2.x
-        obs_2_y = vel_controller_2.y
-        obs_3_x = vel_controller_3.x
-        obs_3_y = vel_controller_3.y
+        obs_1_x = vicon_track.data[3].translation.x - vicon_offset_x
+        obs_1_y = vicon_track.data[3].translation.y - vicon_offset_y
+        obs_2_x = vicon_track.data[2].translation.x - vicon_offset_x
+        obs_2_y = vicon_track.data[2].translation.y - vicon_offset_y
+        obs_3_x = vicon_track.data[1].translation.x - vicon_offset_x
+        obs_3_y = vicon_track.data[1].translation.y - vicon_offset_y
         obs_1_cur_loc = np.array([[obs_1_x], [obs_1_y]])
         obs_2_cur_loc = np.array([[obs_2_x], [obs_2_y]])
         obs_3_cur_loc = np.array([[obs_3_x], [obs_3_y]])
@@ -457,22 +461,29 @@ if __name__ == '__main__':
         # Query camera to determine which obstacles are in view
         obs_in_view = obstacle_tracker.which_obj()
 
-        print(obs_in_view)
-
         # Convert obs in view from color to number of obtacle
         obs_in_view_list = []
-        if 'red' in obs_in_view:
+        if 'pink' in obs_in_view:
             obs_in_view_list.append(0)
         if 'green' in obs_in_view:
             obs_in_view_list.append(1)
-        if 'blue' in obs_in_view:
+        if 'yellow' in obs_in_view:
             obs_in_view_list.append(2)
-        robotic_agent_environ.observable_obstacles_list = obs_in_view_list
 
         # Now, update the simulated and actual positions of the robot, obstacles.
         robotic_agent_environ.update_obs_positions_and_plots(obs_act_positions,obs_in_view_list)
-        robotic_agent_environ.rob_pos = np.array([[vel_controller_0.x], [vel_controller_0.y]])
-        robotic_agent_environ.heading_angle = vel_controller_0.yaw
+        robotic_agent_environ.rob_pos = np.array([vicon_track.data[0].translation.x - vicon_offset_x, vicon_track.data[0].translation.y - vicon_offset_y])
+        rot_q = vicon_track.data[0].rotation
+        _, _, vicon_yaw = euler_from_quaternion([rot_q.x, rot_q.y, rot_q.z, rot_q.w])
+        robotic_agent_environ.heading_angle = vicon_yaw
+        # robotic_agent_environ.rob_pos = np.array([vel_controller_0.x, vel_controller_0.y])
+        # robotic_agent_environ.heading_angle = vel_controller_0.yaw
+
+        # print('----------')
+        # print(robotic_agent_environ.most_rel_obs_ind)
+        # print(robotic_agent_environ.heading_angle)
+        # print(robotic_agent_environ.best_gamma_ind)
+        # print(robotic_agent_environ.heading_angle_sequence)
 
     np.savetxt("optimization_times_sum.csv", np.array(solve_optimization_times),delimiter=',')
     np.savetxt("go_to_point_times.csv", np.array(travel_to_point_times),delimiter=',')
