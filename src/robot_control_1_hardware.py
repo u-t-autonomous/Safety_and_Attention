@@ -12,6 +12,7 @@ import command_control as cc
 # Imports for Algorithm side
 import random
 from TBVelocityController import TBVelocityController as controller
+from ViconTracker import Tracker
 
 
 # To import for running safety and attention simulations
@@ -46,9 +47,14 @@ if __name__ == '__main__':
     rospy.init_node("robot_control_1_node", anonymous=True)
     wait_for_time()
 
+    # vicon_track = Tracker()
+    # vicon_offset_x = -1.092
+    # vicon_offset_y = -1.533
+
     # Create velocity controller and converter objects
-    vel_controller_1 = controller('/tb3_1/odom', '/tb3_1/cmd_vel')
     robot_name='tb3_1'
+    vel_controller_1 = controller('/tb3_1/odom', '/tb3_1/cmd_vel') # Using Odom
+    # vel_controller_1 = controller('/tb3_1/odom', '/tb3_1/cmd_vel',vicon_track,robot_name) # Using Vicon
     rospy.sleep(1.0)
 
     # Wait until all other robots are ready
