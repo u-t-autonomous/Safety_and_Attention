@@ -280,7 +280,11 @@ if __name__ == '__main__':
 
         rdy.set_ready(False)
         tic_gtp_1 = time.time()
-        vel_controller_0.go_to_point(next_state)
+
+        ### -- You will need to figure out where to publish the velocity command.
+        vel_controller_0.go_to_point(next_state) #<--- This wont work unless you use the controller
+        ### -- ###
+
         travel_to_point_times.append(time.time() - tic_gtp_1)
         rdy.set_ready(True)
         # Wait for the agent and the obstacles to have synchronized to their next state
