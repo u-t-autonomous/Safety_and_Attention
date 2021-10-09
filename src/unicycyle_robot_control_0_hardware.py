@@ -21,6 +21,7 @@ import time
 import copy
 import random
 from ViconTracker import Tracker
+from TBVelocityController import TBVelocityController as controller
 # from partial_semantics import *
 # Rviz
 # from visualization_msgs.msg import Marker
@@ -50,194 +51,6 @@ from scipy.sparse import csc_matrix as csc
 from detect_colors_hardware import object_map
 
 
-# ------------------ Start Class Definitions ------------------
-
-class VelocityController:
-    """Simple velocity controller meant to be used with turtlebot3"""
-    def __init__(self, odom_topic_name, cmd_vel_topic_name, vt, debug=False):
-        self.debug = debug
-        self.__odom_sub = rospy.Subscriber(odom_topic_name, Odometry, self.__odomCB)
-        self.cmd_vel_pub = rospy.Publisher(cmd_vel_topic_name, Twist, queue_size = 1)
-
-        self.vt = vt
-        self.x = None
-        self.y = None
-        self.yaw = None
-        self.r = rospy.Rate(4)
-        self.vel_cmd = Twist()
-
-    def __odomCB(self, msg):
-        # self.x = msg.pose.pose.position.x
-        # self.y = msg.pose.pose.position.y
-        # Temporary fix
-        self.x = self.vt.data[0].translation.x - (-1.092) - (-2.50)
-        self.y = self.vt.data[0].translation.y - (-1.533) - (-0.75)
-        rot_q = msg.pose.pose.orientation
-        _, _, self.yaw = euler_from_quaternion([rot_q.x, rot_q.y, rot_q.z, rot_q.w])
-
-    def go_to_point(self, data):
-
-        # input variable goal should be of type [geometry_msgs/Point,yaw]
-        goal = data[0]
-        final_yaw = data[1]
-
-        print("Starting to head towards the waypoint")
-
-        ''' First do the rotation towards the goal '''
-        error_x = goal.x - self.x
-        error_y = goal.y - self.y
-        angle_to_goal = np.arctan2(error_y, error_x)
-        angle_error = self.yaw - angle_to_goal
-
-        if self.debug:
-            print("Starting to rotate towards waypoint")
-
-        while abs(angle_error) > 0.01:
-            ''' Only useful if there is some slip/slide of the turtlebot while rotating '''
-            # error_x = goal.x - self.x
-            # error_y = goal.y - self.y
-            # angle_to_goal = np.arctan2(error_y, error_x) # # #
-            angle_error = self.yaw - angle_to_goal
-            if self.debug:
-                print("Angle to goal: {:.5f},   Yaw: {:.5f},   Angle error: {:.5f}".format(angle_to_goal, self.yaw, angle_error))
-            if angle_to_goal >= 0:
-                if self.yaw <= angle_to_goal and self.yaw >= angle_to_goal - np.pi:
-                    self.vel_cmd.linear.x = 0.0
-                    self.vel_cmd.angular.z = np.minimum(abs(angle_error), 0.4)
-                else:
-                    self.vel_cmd.linear.x = 0.0
-                    self.vel_cmd.angular.z = -np.minimum(abs(angle_error), 0.4)
-            else:
-                if self.yaw <= angle_to_goal + np.pi and self.yaw > angle_to_goal:
-                    self.vel_cmd.linear.x = 0.0
-                    self.vel_cmd.angular.z = -np.minimum(abs(angle_error), 0.4)
-                else:
-                    self.vel_cmd.linear.x = 0.0
-                    self.vel_cmd.angular.z = np.minimum(abs(angle_error), 0.4)
-            # Publish and set loop rate
-            self.cmd_vel_pub.publish(self.vel_cmd)
-            self.r.sleep()
-            # Calculate angle error again before loop condition is checked
-            angle_error = self.yaw - angle_to_goal
-
-        # Stop rotation
-        self.cmd_vel_pub.publish(Twist())
-        rospy.sleep(1)
-        if self.debug:
-            print("Stopping the turn")
-
-        ''' Then use a PID that controls the cmd velocity and drives the distance error to zero '''
-        error_x = goal.x - self.x
-        error_y = goal.y - self.y
-        distance_error = np.sqrt(error_x**2 + error_y**2)
-        angle_to_goal = np.arctan2(error_y, error_x)
-        angle_error = abs(self.yaw - angle_to_goal)
-        previous_distance_error = 0
-        total_distance_error = 0
-        previous_angle_error = 0
-        total_angle_error = 0
-
-        kp_distance = 1
-        ki_distance = 0.1
-        kd_distance = 0.1
-
-        kp_angle = 1
-        ki_angle = 0.1
-        kd_angle = 0.1
-
-        if self.debug:
-            print("Starting the PID")
-
-        while distance_error > 0.05:
-            error_x = goal.x - self.x
-            error_y = goal.y - self.y
-            distance_error = np.sqrt(error_x**2 + error_y**2)
-            angle_to_goal = np.arctan2(error_y, error_x)
-            angle_error = abs(self.yaw - angle_to_goal)
-
-            total_distance_error = total_distance_error + distance_error
-            total_angle_error = total_angle_error + angle_error
-            diff_distance_error = distance_error - previous_distance_error
-            diff_angle_error = angle_error - previous_angle_error
-
-            control_signal_distance = kp_distance*distance_error + ki_distance*total_distance_error + kd_distance*diff_distance_error
-            control_signal_angle = kp_angle*angle_error + ki_angle*total_angle_error + kd_angle*diff_angle_error
-
-            self.vel_cmd.linear.x = np.minimum(control_signal_distance, 0.1)
-            self.vel_cmd.angular.z = control_signal_angle
-
-            if angle_to_goal >= 0:
-                if self.yaw <= angle_to_goal and self.yaw >= angle_to_goal - np.pi:
-                    self.vel_cmd.angular.z = np.minimum(abs(control_signal_angle), 0.4)
-                else:
-                    self.vel_cmd.angular.z = -np.minimum(abs(control_signal_angle), 0.4)
-            else:
-                if self.yaw <= angle_to_goal + np.pi and self.yaw > angle_to_goal:
-                    self.vel_cmd.angular.z = -np.minimum(abs(control_signal_angle), 0.4)
-                else:
-                    self.vel_cmd.angular.z = np.minimum(abs(control_signal_angle), 0.4)
-
-            previous_distance_error = distance_error
-            previous_angle_error = angle_error
-
-            self.cmd_vel_pub.publish(self.vel_cmd)
-            self.r.sleep()
-
-        # Stop motion
-        self.cmd_vel_pub.publish(Twist())
-        if self.debug:
-            print("Stopping PID")
-
-        # Then finally rotate to the desired final yaw
-        angle_error = self.yaw - final_yaw
-
-        if self.debug:
-            print("Starting to rotate towards goal orientation")
-
-        while abs(angle_error) > 0.01:
-            ''' Only useful if there is some slip/slide of the turtlebot while rotating '''
-            # error_x = goal.x - self.x
-            # error_y = goal.y - self.y
-            # angle_to_goal = np.arctan2(error_y, error_x) # # #
-            angle_error = self.yaw - final_yaw
-            if self.debug:
-                print("Angle to goal: {:.5f},   Yaw: {:.5f},   Angle error: {:.5f}".format(final_yaw, self.yaw, angle_error))
-            if final_yaw >= 0:
-                if self.yaw <= final_yaw and self.yaw >= final_yaw - np.pi:
-                    self.vel_cmd.linear.x = 0.0
-                    self.vel_cmd.angular.z = np.minimum(abs(angle_error), 0.4)
-                else:
-                    self.vel_cmd.linear.x = 0.0
-                    self.vel_cmd.angular.z = -np.minimum(abs(angle_error), 0.4)
-            else:
-                if self.yaw <= final_yaw + np.pi and self.yaw > final_yaw:
-                    self.vel_cmd.linear.x = 0.0
-                    self.vel_cmd.angular.z = -np.minimum(abs(angle_error), 0.4)
-                else:
-                    self.vel_cmd.linear.x = 0.0
-                    self.vel_cmd.angular.z = np.minimum(abs(angle_error), 0.4)
-            # Publish and set loop rate
-            self.cmd_vel_pub.publish(self.vel_cmd)
-            self.r.sleep()
-            # Calculate angle error again before loop condition is checked
-            angle_error = self.yaw - final_yaw
-
-        # Stop rotation
-        self.cmd_vel_pub.publish(Twist())
-        rospy.sleep(1)
-        if self.debug:
-            print("Stopping the turn")
-
-        # Stop motion
-        self.cmd_vel_pub.publish(Twist())
-        if self.debug:
-            print("Stopping motion")
-            print("Position is currently: ({:.5f},{:.5f})    Yaw is currently: [{:.5f}]".format(self.x, self.y, self.yaw))
-
-        print("** Waypoint Reached **")
-
-# ------------------ End Class Definitions --------------------
-
 # ------------------ Start Function Definitions ---------------
 def make_user_wait(msg="Enter exit to exit"):
     data = raw_input(msg + "\n")
@@ -248,6 +61,19 @@ def wait_for_time():
     """Wait for simulated time to begin """
     while rospy.Time().now().to_sec() == 0:
         pass
+
+def build_massage(data):
+    vel_cmd = Twist()
+
+    vel_cmd.linear.x = data[0]
+    vel_cmd.linear.y = data[1]
+    vel_cmd.linear.z = data[2]
+
+    vel_cmd.angular.x = data[3]
+    vel_cmd.angular.y = data[4]
+    vel_cmd.angular.z = data[5]
+
+    return vel_cmd
 # ------------------ End Function Definitions -----------------
 
 # Adjusted 'main' to run using unicycle dynamics
@@ -262,20 +88,35 @@ if __name__ == '__main__':
     vicon_offset_x = -1.092
     vicon_offset_y = -1.533
 
-    # Create velocity controllers
     robot_name='tb3_0'
-    vel_controller_0 = VelocityController('/tb3_0/odom', '/tb3_0/cmd_vel',vicon_track)
-    # vel_controller_1 = VelocityController('/tb3_1/odom', '/tb3_1/cmd_vel')
-    # vel_controller_2 = VelocityController('/tb3_2/odom', '/tb3_2/cmd_vel')
-    # vel_controller_3 = VelocityController('/tb3_3/odom', '/tb3_3/cmd_vel')
-    rospy.sleep(1.0)
+
+########  Start new stuff ########
+
+    #-- This is the publisher object that you feed your velocity command to --#
+    cmd_vel_pub = rospy.Publisher('/tb3_0/cmd_vel', Twist, queue_size = 1)
+
+    #-- Build your message with velocity set point data --#
+    data = None #<<<------- Fill this with your data
+    vel_cmd = build_massage(data)
+
+    #-- Publish the velocity command using the publisher object --#
+    cmd_vel_pub.publish(vel_cmd)
+
+    # # #-- This is the upateded controller. It will not perform a final rotation --# # #
+    # # #-- Uncomment if you want to use it --# # #
+    # vel_controller_0 = controller('/tb3_0/odom', '/tb3_0/cmd_vel',vicon_track,robot_name)
+    # rospy.sleep(1.0)
+
+
+########  Back to old stuff ########
+
 
     # Create the obstacle map
-    # NOTE THAT:
-    # obstacle 1 maps to 'red'
-    # obstacle 2 maps to 'green'
-    # obstacle 3 maps to 'blue'
-    # FOR NOW, ASSUME THAT WE ARE ALWAYS USING 3 OBSTACLES!
+    ''' NOTE THAT:
+    obstacle 1 maps to 'red'
+    obstacle 2 maps to 'green'
+    obstacle 3 maps to 'blue'
+    FOR NOW, ASSUME THAT WE ARE ALWAYS USING 3 OBSTACLES! '''
     obstacle_tracker = object_map()
 
     ''' Set up the safety and attention environment to perform the planning in,
